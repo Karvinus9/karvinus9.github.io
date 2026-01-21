@@ -118,135 +118,131 @@
 </head>
 <body>
 
+    <div id="debug" class="debug-info"></div>
+
     <div class="container">
-        <div class="filters" id="filters">
-            <div class="filter-chip active" onclick="filterStyles('all')">Все</div>
-            <div class="filter-chip" onclick="filterStyles('female')">Женские</div>
-            <div class="filter-chip" onclick="filterStyles('male')">Мужские</div>
-            <div class="filter-chip" onclick="filterStyles('couple')">Парные</div>
-            <div class="filter-chip" onclick="filterStyles('group')">Групповые</div>
-            <div class="filter-chip" onclick="filterStyles('child')">Детские</div>
+        <!-- Фильтры -->
+        <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px;">
+            <button onclick="filterStyles('all')">Все</button>
+            <button onclick="filterStyles('female')">Женские</button>
+            <button onclick="filterStyles('male')">Мужские</button>
+            <button onclick="filterStyles('couple')">Парные</button>
         </div>
-        <div class="gallery" id="gallery">
-            <div class="empty-state">Загрузка стилей...</div>
-        </div>
+
+        <div class="gallery" id="gallery">Загрузка...</div>
     </div>
 
     <script>
+        // 1. Инициализация
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Раскрыть на весь экран
+        
+        // Сообщаем телеграму, что приложение готово
+        tg.ready();
+        tg.expand(); 
 
-        // Настройка нативной кнопки
-        tg.MainButton.textColor = '#FFFFFF';
-        tg.MainButton.color = '#2cab37'; // Зеленый цвет
-        tg.MainButton.setText('ВЫБРАТЬ ЭТОТ СТИЛЬ');
+        // Настройка главной кнопки (MainButton)
+        tg.MainButton.text = "ВЫБРАТЬ СТИЛЬ";
+        tg.MainButton.textColor = "#FFFFFF";
+        tg.MainButton.color = "#2cab37"; // Зеленый
 
         let styles = [];
         let selectedStyleId = null;
-        
-        // Получаем параметры
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlGender = urlParams.get('gender');
-        
-        let activeFilter = (urlGender && urlGender !== 'unisex' && urlGender !== 'None' && urlGender !== 'null') 
-                           ? urlGender 
-                           : 'all';
 
-        // Загрузка данных
+        // Логгер ошибок на экран (для отладки)
+        function logError(msg) {
+            const debug = document.getElementById('debug');
+            debug.style.display = 'block';
+            debug.innerText = "ОШИБКА: " + msg;
+        }
+
+        // 2. Загрузка данных
         async function loadData() {
             try {
-                const response = await fetch(`styles.json?v=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("Network response was not ok");
+                // Добавляем random, чтобы не кэшировалось жестко
+                const response = await fetch(`styles.json?r=${Math.random()}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 styles = await response.json();
-                renderGallery();
-            } catch (error) {
-                document.getElementById('gallery').innerHTML = `<div class="empty-state">Ошибка: ${error.message}</div>`;
+                
+                // Фильтр из URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const gender = urlParams.get('gender') || 'all';
+                
+                renderGallery(gender);
+            } catch (e) {
+                logError("Не удалось загрузить styles.json. Проверьте, что файл лежит в репозитории! " + e.message);
             }
         }
 
-        function renderGallery() {
+        // 3. Рендер
+        function renderGallery(filter) {
             const gallery = document.getElementById('gallery');
-            const filters = document.getElementById('filters');
             gallery.innerHTML = '';
-            
-            // Фильтры UI
-            Array.from(filters.children).forEach(chip => {
-                const chipText = chip.innerText.toLowerCase();
-                const genderMap = translateGender(activeFilter).toLowerCase();
-                const isActive = chipText.includes(genderMap) || (activeFilter === 'all' && chip.innerText === 'Все');
-                chip.classList.toggle('active', isActive);
-            });
 
-            // Фильтрация данных
-            const filteredStyles = activeFilter === 'all' 
-                ? styles 
-                : styles.filter(s => s.gender === activeFilter || s.gender === 'unisex');
+            const filtered = filter === 'all' ? styles : styles.filter(s => s.gender === filter || s.gender === 'unisex');
 
-            if (filteredStyles.length === 0) {
-                gallery.innerHTML = '<div class="empty-state">Нет стилей для этой категории</div>';
+            if (filtered.length === 0) {
+                gallery.innerHTML = '<div style="padding:20px; text-align:center;">Нет стилей</div>';
                 return;
             }
 
-            filteredStyles.forEach(style => {
+            filtered.forEach(style => {
                 const card = document.createElement('div');
                 card.className = `card ${selectedStyleId === style.id ? 'selected' : ''}`;
                 card.onclick = () => selectStyle(style.id);
-
-                const imgUrl = style.image ? style.image : `https://via.placeholder.com/300x450?text=${encodeURIComponent(style.name)}`;
+                
+                // Заглушка, если нет картинки
+                const img = style.image ? style.image : 'https://placehold.co/300x450?text=No+Image';
 
                 card.innerHTML = `
                     <div class="image-wrapper">
-                        <img src="${imgUrl}" class="card-img" onload="this.classList.add('loaded')" alt="${style.name}">
+                        <img src="${img}" class="card-img" onload="this.classList.add('loaded')">
                     </div>
-                    <div class="checkmark">
-                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    </div>
-                    <div class="card-info">
-                        <div class="card-title">${style.name}</div>
-                    </div>
+                    <div class="card-info">${style.name}</div>
                 `;
                 gallery.appendChild(card);
             });
         }
 
-        function filterStyles(gender) {
-            activeFilter = gender;
-            renderGallery();
-        }
-
+        // 4. Логика выбора
         function selectStyle(id) {
-            if (selectedStyleId !== id) {
-                selectedStyleId = id;
-                if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-                renderGallery();
-                
-                // ПОКАЗЫВАЕМ НАТИВНУЮ КНОПКУ
-                if (tg.MainButton.isVisible) {
-                    tg.MainButton.hide();
-                    setTimeout(() => tg.MainButton.show(), 50); // Мигание для эффекта обновления
-                } else {
-                    tg.MainButton.show();
-                }
+            selectedStyleId = id;
+            
+            // Вибрация (если поддерживается)
+            if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            
+            // Перерисовываем, чтобы показать выделение
+            // (В реальном проекте лучше менять класс через JS без перерисовки всего, но так проще)
+            const urlParams = new URLSearchParams(window.location.search);
+            renderGallery(urlParams.get('gender') || 'all');
+
+            // Показываем кнопку "ВЫБРАТЬ"
+            if (!tg.MainButton.isVisible) {
+                tg.MainButton.show();
             }
         }
 
-        // ОБРАБОТЧИК НАЖАТИЯ НА НАТИВНУЮ КНОПКУ
+        function filterStyles(g) {
+            renderGallery(g);
+        }
+
+        // 5. ГЛАВНОЕ: Обработка нажатия кнопки "Отправить"
         tg.MainButton.onClick(function() {
             if (!selectedStyleId) {
-                tg.showAlert("Сначала выберите стиль!");
+                tg.showAlert("Выберите стиль!");
                 return;
             }
-            // Отправляем данные боту
-            tg.sendData(selectedStyleId); 
-            // Иногда нужно явно закрыть (хотя sendData должна закрывать сама)
-            // tg.close(); 
+            
+            try {
+                // ОТПРАВКА ДАННЫХ
+                tg.sendData(selectedStyleId); 
+            } catch (e) {
+                logError("Ошибка sendData: " + e.message);
+                // Если мы тестируем в браузере (не в TG), sendData вызовет ошибку или ничего не сделает
+                alert("Отправка данных (в браузере не сработает): " + selectedStyleId);
+            }
         });
 
-        function translateGender(g) {
-            const map = { 'female': 'Женские', 'male': 'Мужские', 'couple': 'Парные', 'group': 'Групповые', 'child': 'Детские', 'all': 'Все' };
-            return map[g] || 'Все';
-        }
-
+        // Запуск
         loadData();
 
     </script>
