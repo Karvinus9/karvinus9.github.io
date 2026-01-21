@@ -182,6 +182,20 @@
             margin-bottom: 16px;
             opacity: 0.5;
         }
+
+        .debug-info {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -203,17 +217,40 @@
         </div>
     </div>
 
+    <div id="debug" class="debug-info"></div>
+
     <script>
         // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        tg.MainButton.text = "ВЫБРАТЬ ЭТОТ СТИЛЬ";
-        tg.MainButton.hide();
+        
+        function debugLog(msg) {
+            console.log(msg);
+            document.getElementById('debug').innerHTML += msg + '<br>';
+            document.getElementById('debug').style.display = 'block';
+        }
+        
+        try {
+            debugLog('Initializing WebApp...');
+            tg.ready();
+            tg.expand();
+            
+            // Настраиваем основную кнопку
+            tg.MainButton.setText("ВЫБРАТЬ ЭТОТ СТИЛЬ");
+            tg.MainButton.hide();
+            tg.MainButton.enable();
+            debugLog('MainButton configured');
+            
+            // Проверяем доступные методы
+            debugLog('WebApp version: ' + tg.version);
+            debugLog('Platform: ' + tg.platform);
+            debugLog('sendData available: ' + (typeof tg.sendData === 'function'));
+        } catch (e) {
+            debugLog('Error initializing WebApp: ' + e.message);
+        }
 
         let selectedPin = null;
 
-        // ДЕМО-ДАННЫЕ: Замените на реальные пины из Pinterest API
+        // ДЕМО-ДАННЫЕ
         const pinsData = [
             {
                 id: 'pin_1',
@@ -315,10 +352,15 @@
 
             // Показываем кнопку
             tg.MainButton.show();
+            debugLog('Selected pin: ' + pinId);
             
             // Виброотклик
             if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
+                try {
+                    tg.HapticFeedback.impactOccurred('light');
+                } catch (e) {
+                    debugLog('Haptic error: ' + e.message);
+                }
             }
         }
 
@@ -334,56 +376,49 @@
                 // Сброс выбора при смене фильтра
                 selectedPin = null;
                 tg.MainButton.hide();
+                debugLog('Filter changed to: ' + currentFilter);
             });
         });
 
         // Отправка данных в бот
-        tg.MainButton.onClick(() => {
-            if (selectedPin) {
-                if (tg.HapticFeedback) {
-                    tg.HapticFeedback.notificationOccurred('success');
-                }
-                
+        tg.MainButton.onClick(function() {
+            debugLog('MainButton clicked');
+            
+            if (!selectedPin) {
+                debugLog('No pin selected');
+                alert('Пожалуйста, выберите стиль!');
+                return;
+            }
+
+            const data = {
+                action: 'select_style',
+                pin_id: selectedPin.id,
+                pin_url: selectedPin.url,
+                pin_data: selectedPin.pin
+            };
+            
+            const dataString = JSON.stringify(data);
+            debugLog('Sending data: ' + dataString);
+            
+            try {
                 // Отправляем данные боту
-                tg.sendData(JSON.stringify({
-                    action: 'select_style',
-                    pin_id: selectedPin.id,
-                    pin_url: selectedPin.url,
-                    pin_data: selectedPin.pin
-                }));
+                tg.sendData(dataString);
+                debugLog('Data sent successfully');
+                
+                // Закрываем веб-приложение
+                setTimeout(() => {
+                    tg.close();
+                }, 300);
+                
+            } catch (e) {
+                debugLog('Error sending data: ' + e.message);
+                alert('Ошибка отправки данных. Попробуйте еще раз.');
             }
         });
 
         // Инициализация
         renderGallery();
-
-        // ИНТЕГРАЦИЯ С PINTEREST API (раскомментируйте когда получите токен)
-        /*
-        async function loadPinterestPins(boardId) {
-            try {
-                const response = await fetch(`/api/pinterest/boards/${boardId}/pins`, {
-                    headers: {
-                        'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
-                    }
-                });
-                const data = await response.json();
-                
-                // Преобразуем пины Pinterest в формат приложения
-                const pins = data.items.map(item => ({
-                    id: item.id,
-                    image: item.media.images['400x300'].url,
-                    title: item.title || item.description,
-                    category: detectCategory(item.description), // Функция определения категории
-                    description: item.description
-                }));
-                
-                return pins;
-            } catch (error) {
-                console.error('Error loading Pinterest pins:', error);
-                return [];
-            }
-        }
-        */
+        debugLog('Gallery initialized');
     </script>
 </body>
 </html>
