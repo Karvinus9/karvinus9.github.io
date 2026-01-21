@@ -132,16 +132,19 @@
         </div>
     </div>
 
-    <div class="main-button" id="mainButton" onclick="sendResult()">Выбрать стиль</div>
-
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
+        tg.expand(); // Раскрыть на весь экран
+
+        // Настройка нативной кнопки
+        tg.MainButton.textColor = '#FFFFFF';
+        tg.MainButton.color = '#2cab37'; // Зеленый цвет
+        tg.MainButton.setText('ВЫБРАТЬ ЭТОТ СТИЛЬ');
 
         let styles = [];
         let selectedStyleId = null;
         
-        // 1. Получаем параметр gender из URL (например, ?gender=female)
+        // Получаем параметры
         const urlParams = new URLSearchParams(window.location.search);
         const urlGender = urlParams.get('gender');
         
@@ -149,17 +152,15 @@
                            ? urlGender 
                            : 'all';
 
-        // 2. Загружаем JSON с данными
+        // Загрузка данных
         async function loadData() {
             try {
-                // Добавляем timestamp, чтобы избежать жесткого кэширования при обновлении стилей
                 const response = await fetch(`styles.json?v=${new Date().getTime()}`);
                 if (!response.ok) throw new Error("Network response was not ok");
-                
                 styles = await response.json();
                 renderGallery();
             } catch (error) {
-                document.getElementById('gallery').innerHTML = `<div class="empty-state">Ошибка загрузки стилей<br>${error.message}</div>`;
+                document.getElementById('gallery').innerHTML = `<div class="empty-state">Ошибка: ${error.message}</div>`;
             }
         }
 
@@ -168,7 +169,7 @@
             const filters = document.getElementById('filters');
             gallery.innerHTML = '';
             
-            // Обновляем UI фильтров
+            // Фильтры UI
             Array.from(filters.children).forEach(chip => {
                 const chipText = chip.innerText.toLowerCase();
                 const genderMap = translateGender(activeFilter).toLowerCase();
@@ -176,13 +177,13 @@
                 chip.classList.toggle('active', isActive);
             });
 
-            // Фильтрация
+            // Фильтрация данных
             const filteredStyles = activeFilter === 'all' 
                 ? styles 
                 : styles.filter(s => s.gender === activeFilter || s.gender === 'unisex');
 
             if (filteredStyles.length === 0) {
-                gallery.innerHTML = '<div class="empty-state">Нет стилей для этой категории 🤷‍♂️</div>';
+                gallery.innerHTML = '<div class="empty-state">Нет стилей для этой категории</div>';
                 return;
             }
 
@@ -191,7 +192,6 @@
                 card.className = `card ${selectedStyleId === style.id ? 'selected' : ''}`;
                 card.onclick = () => selectStyle(style.id);
 
-                // Если image нет, ставим заглушку
                 const imgUrl = style.image ? style.image : `https://via.placeholder.com/300x450?text=${encodeURIComponent(style.name)}`;
 
                 card.innerHTML = `
@@ -219,33 +219,34 @@
                 selectedStyleId = id;
                 if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
                 renderGallery();
-                updateButton();
+                
+                // ПОКАЗЫВАЕМ НАТИВНУЮ КНОПКУ
+                if (tg.MainButton.isVisible) {
+                    tg.MainButton.hide();
+                    setTimeout(() => tg.MainButton.show(), 50); // Мигание для эффекта обновления
+                } else {
+                    tg.MainButton.show();
+                }
             }
         }
 
-        function updateButton() {
-            const btn = document.getElementById('mainButton');
-            if (selectedStyleId) {
-                btn.classList.add('visible');
-            } else {
-                btn.classList.remove('visible');
+        // ОБРАБОТЧИК НАЖАТИЯ НА НАТИВНУЮ КНОПКУ
+        tg.MainButton.onClick(function() {
+            if (!selectedStyleId) {
+                tg.showAlert("Сначала выберите стиль!");
+                return;
             }
-        }
-
-        function sendResult() {
-            if (!selectedStyleId) return;
-            tg.sendData(selectedStyleId);
-        }
+            // Отправляем данные боту
+            tg.sendData(selectedStyleId); 
+            // Иногда нужно явно закрыть (хотя sendData должна закрывать сама)
+            // tg.close(); 
+        });
 
         function translateGender(g) {
-            const map = {
-                'female': 'Женские', 'male': 'Мужские', 'couple': 'Парные',
-                'group': 'Групповые', 'child': 'Детские', 'all': 'Все'
-            };
+            const map = { 'female': 'Женские', 'male': 'Мужские', 'couple': 'Парные', 'group': 'Групповые', 'child': 'Детские', 'all': 'Все' };
             return map[g] || 'Все';
         }
 
-        // Запуск
         loadData();
 
     </script>
