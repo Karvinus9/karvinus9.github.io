@@ -401,18 +401,12 @@
             debugLog('Sending data: ' + dataString);
             
             try {
-                // Отправляем данные боту
-                tg.sendData(dataString);
-                debugLog('Data sent successfully');
-                
-                // Закрываем веб-приложение
-                setTimeout(() => {
-                    tg.close();
-                }, 300);
-                
+                debugLog('Sending data: ' + dataString);
+                // tg.sendData САМ закроет приложение после успешной отправки
+                tg.sendData(dataString); 
             } catch (e) {
                 debugLog('Error sending data: ' + e.message);
-                alert('Ошибка отправки данных. Попробуйте еще раз.');
+                alert('Ошибка отправки данных: ' + e.message);
             }
         });
 
