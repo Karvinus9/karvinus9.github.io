@@ -100,20 +100,52 @@
             box-shadow: 0 4px 20px rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.3);
         }
 
-        /* ПОРТРЕТНОЕ изображение */
-        .style-image {
+        /* ОПТИМИЗАЦИЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ */
+        .image-container {
+            position: relative;
             width: 100%;
-            height: 240px; /* Увеличено с 180px для портретной ориентации */
-            object-fit: cover;
-            display: block;
-            transition: transform 0.3s ease;
+            height: 240px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
         }
 
-        .style-card:hover .style-image {
+        /* Blur placeholder пока грузится */
+        .image-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #e8e8e8 0%, #f0f0f0 50%, #e8e8e8 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .style-image {
+            position: relative;
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.3s ease;
+            will-change: opacity;
+        }
+
+        .style-image.loaded {
+            opacity: 1;
+        }
+
+        .style-card:hover .style-image.loaded {
             transform: scale(1.05);
         }
 
-        /* Градиент поверх изображения для лучшей читаемости */
+        /* Градиент поверх изображения */
         .image-overlay {
             position: absolute;
             top: 0;
@@ -228,7 +260,7 @@
             fill: #ff0000;
         }
 
-        /* Новый индикатор стиля */
+        /* Индикатор стиля */
         .style-tag {
             position: absolute;
             bottom: 70px;
@@ -283,7 +315,7 @@
             overflow-y: auto;
         }
 
-        /* Loader для загрузки */
+        /* Loader */
         .loader {
             grid-column: span 2;
             display: flex;
@@ -309,6 +341,23 @@
             width: 0;
             height: 0;
         }
+
+        /* Fade-in анимация для карточек */
+        .style-card {
+            animation: fadeInUp 0.4s ease forwards;
+            opacity: 0;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -333,6 +382,68 @@
         tg.expand();
         tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
         
+        // ========== ОПТИМИЗАЦИЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ ==========
+        
+        // Предзагрузка изображений с приоритетом
+        const imageCache = new Map();
+        const imageObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    loadImage(img);
+                    imageObserver.unobserve(img);
+                }
+            });
+        }, {
+            rootMargin: '50px' // Начинаем загрузку за 50px до появления
+        });
+
+        function loadImage(img) {
+            const src = img.dataset.src;
+            if (!src) return;
+
+            // Проверяем кэш
+            if (imageCache.has(src)) {
+                img.src = src;
+                img.classList.add('loaded');
+                return;
+            }
+
+            // Создаем новый объект Image для предзагрузки
+            const tempImg = new Image();
+            
+            tempImg.onload = () => {
+                img.src = src;
+                img.classList.add('loaded');
+                imageCache.set(src, true);
+                
+                // Удаляем placeholder
+                const placeholder = img.parentElement.querySelector('.image-placeholder');
+                if (placeholder) {
+                    setTimeout(() => placeholder.remove(), 400);
+                }
+            };
+
+            tempImg.onerror = () => {
+                console.error('Failed to load image:', src);
+                // Показываем заглушку при ошибке
+                img.parentElement.style.background = 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
+                const placeholder = img.parentElement.querySelector('.image-placeholder');
+                if (placeholder) placeholder.remove();
+            };
+
+            tempImg.src = src;
+        }
+
+        // Принудительная предзагрузка первых N изображений
+        function preloadPriorityImages(count = 4) {
+            const images = document.querySelectorAll('.style-image[data-src]');
+            Array.from(images).slice(0, count).forEach(img => {
+                loadImage(img);
+                imageObserver.unobserve(img);
+            });
+        }
+        
         // ========== УНИВЕРСАЛЬНОЕ ПОЛУЧЕНИЕ USER ID ==========
         
         function getUserId() {
@@ -342,7 +453,6 @@
                 attempts: []
             };
             
-            // СПОСОБ 1: Из URL параметров (если бот передаст)
             const urlParams = new URLSearchParams(window.location.search);
             const urlUserId = urlParams.get('user_id');
             debugData.attempts.push({method: 'URL params', value: urlUserId});
@@ -351,14 +461,12 @@
                 debugData.source = 'URL';
             }
             
-            // СПОСОБ 2: Из initDataUnsafe (стандартный способ)
             if (!userId && tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 userId = tg.initDataUnsafe.user.id;
                 debugData.source = 'initDataUnsafe';
                 debugData.attempts.push({method: 'initDataUnsafe', value: userId});
             }
             
-            // СПОСОБ 3: Парсинг initData вручную
             if (!userId && tg.initData) {
                 try {
                     const params = new URLSearchParams(tg.initData);
@@ -376,7 +484,6 @@
                 }
             }
             
-            // СПОСОБ 4: Из localStorage (если сохранили ранее)
             if (!userId) {
                 try {
                     const savedUserId = localStorage.getItem('telegram_user_id');
@@ -390,24 +497,21 @@
                 }
             }
             
-            // Сохраняем в localStorage для следующего раза
             if (userId) {
                 try {
                     localStorage.setItem('telegram_user_id', userId);
                 } catch (e) {}
             }
             
-            // Показываем отладочную информацию (для разработки)
             const debugInfo = document.getElementById('debugInfo');
             debugInfo.innerHTML = `
                 <b>DEBUG INFO</b><br>
                 User ID: ${userId || 'NOT FOUND'}<br>
                 Source: ${debugData.source}<br>
-                Attempts: ${debugData.attempts.length}<br>
+                Images cached: ${imageCache.size}<br>
                 <pre>${JSON.stringify(debugData.attempts, null, 2)}</pre>
             `;
             
-            // Показываем дебаг при тройном тапе
             let tapCount = 0;
             let tapTimer = null;
             document.body.addEventListener('click', () => {
@@ -497,11 +601,12 @@
                 displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
             }
 
-            // РЕНДЕР
-            displayStyles.forEach(style => {
+            // РЕНДЕР с оптимизацией загрузки
+            displayStyles.forEach((style, index) => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
+                card.style.animationDelay = `${index * 0.05}s`; // Каскадная анимация
                 card.onclick = () => selectStyle(style.id);
 
                 let hitBadge = '';
@@ -519,7 +624,6 @@
                         </div>`;
                 }
 
-                // Определяем "настроение" стиля (можно расширить логику)
                 let styleType = '🎨 Стиль';
                 if (style.uses > 30) styleType = '🏆 Легенда';
                 else if (style.uses > 15) styleType = '⚡ Популярный';
@@ -528,8 +632,11 @@
                 card.innerHTML = `
                     ${hitBadge}
                     ${deleteBtn}
-                    <div class="image-overlay"></div>
-                    <img class="style-image" src="${style.img}" loading="lazy" alt="${style.author}">
+                    <div class="image-container">
+                        <div class="image-placeholder"></div>
+                        <div class="image-overlay"></div>
+                        <img class="style-image" data-src="${style.img}" alt="${style.author}">
+                    </div>
                     <div class="style-tag">${styleType}</div>
                     <div class="style-info">
                         <div class="info-row">
@@ -545,6 +652,13 @@
                 `;
                 grid.appendChild(card);
             });
+
+            // Инициализация ленивой загрузки
+            const images = grid.querySelectorAll('.style-image[data-src]');
+            images.forEach(img => imageObserver.observe(img));
+
+            // Предзагружаем первые 4 изображения сразу
+            setTimeout(() => preloadPriorityImages(4), 100);
         }
 
         function switchTab(tabName) {
@@ -565,7 +679,6 @@
             const newCard = document.getElementById(id);
             if (newCard) {
                 newCard.classList.add('selected');
-                // Легкая вибрация при выборе (если поддерживается)
                 if (tg.HapticFeedback) {
                     tg.HapticFeedback.impactOccurred('medium');
                 }
