@@ -95,35 +95,44 @@
         <!-- Карточки будут добавлены через JS -->
     </div>
 
+    <!-- Подключаем файл с данными, который сгенерирует бот -->
+    <script src="styles.js"></script>
+
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
-        
-        // Включаем главную кнопку Telegram внизу экрана
+        tg.expand();
         tg.MainButton.text = "ПРИМЕНИТЬ ВЫБРАННЫЙ СТИЛЬ";
+        tg.MainButton.color = "#2b2b2b"; // Темная кнопка
+        tg.MainButton.textColor = "#ffffff";
 
         let selectedStyleId = null;
 
-        // ВРЕМЕННЫЕ ДАННЫЕ (Потом здесь будет fetch запрос к вашему боту)
-        const styles = [
-            { id: "style_1", title: "Вечерний киберпанк", author: "Alex", uses: 45, img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop" },
-            { id: "style_2", title: "Лесная фея, фэнтези", author: "Maria", uses: 112, img: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=500&auto=format&fit=crop" },
-            { id: "style_3", title: "Гангстерские 20-е", author: "Dmitry", uses: 34, img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&auto=format&fit=crop" },
-            { id: "style_4", title: "Аниме аватарка", author: "Katy", uses: 89, img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&auto=format&fit=crop" }
-        ];
-
         function renderGrid() {
             const grid = document.getElementById('grid');
-            styles.forEach(style => {
+            
+            // Проверка, загрузились ли данные
+            if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
+                grid.innerHTML = '<p style="text-align:center; width:200%;">Галерея пока пуста или обновляется...</p>';
+                return;
+            }
+
+            // Сортировка: Сначала популярные
+            const sortedStyles = GALLERY_STYLES.sort((a, b) => b.uses - a.uses);
+
+            sortedStyles.forEach(style => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
                 card.onclick = () => selectStyle(style.id);
 
+                // Обрезаем длинные названия
+                let displayTitle = style.title || "Стиль без названия";
+                if (displayTitle.length > 30) displayTitle = displayTitle.substring(0, 30) + '...';
+
                 card.innerHTML = `
-                    <img class="style-image" src="${style.img}" alt="${style.title}">
+                    <img class="style-image" src="${style.img}" loading="lazy" alt="${displayTitle}">
                     <div class="style-info">
-                        <p class="style-title">${style.title}</p>
+                        <p class="style-title">${displayTitle}</p>
                         <div class="style-stats">
                             <span>👤 ${style.author}</span>
                             <span>🔥 ${style.uses}</span>
@@ -135,26 +144,23 @@
         }
 
         function selectStyle(id) {
-            // Убираем выделение со старого
             if (selectedStyleId) {
-                document.getElementById(selectedStyleId).classList.remove('selected');
+                const oldCard = document.getElementById(selectedStyleId);
+                if (oldCard) oldCard.classList.remove('selected');
             }
-            // Выделяем новый
             selectedStyleId = id;
-            document.getElementById(id).classList.add('selected');
+            const newCard = document.getElementById(id);
+            if (newCard) newCard.classList.add('selected');
             
-            // Показываем главную кнопку Telegram
             tg.MainButton.show();
         }
 
-        // Обработчик нажатия на главную кнопку
         tg.MainButton.onClick(() => {
-            // ОТПРАВЛЯЕМ ДАННЫЕ В БОТА И ЗАКРЫВАЕМ ПРИЛОЖЕНИЕ
             const data = { action: 'use_gallery_style', style_id: selectedStyleId };
             tg.sendData(JSON.stringify(data));
         });
 
-        // Запуск
+        // Запуск рендера
         renderGrid();
     </script>
 </body>
