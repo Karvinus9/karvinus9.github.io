@@ -90,7 +90,7 @@
             color: var(--hint-color);
             display: flex;
             align-items: center;
-            gap: 6px; /* Отступ между звездами и огнем */
+            gap: 6px;
         }
         
         .author-name {
@@ -118,7 +118,6 @@
             z-index: 5;
         }
         
-        /* СТИЛЬ ДЛЯ ЗВЕЗД (ВЕРНУЛ) */
         .stars {
             color: #FFD700;
             font-size: 11px;
@@ -164,12 +163,37 @@
         tg.expand();
         tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
         
-        const currentUserId = tg.initDataUnsafe?.user?.id;
+        // ИСПРАВЛЕНИЕ: Более надежное получение user ID
+        let currentUserId = null;
+        
+        // Пытаемся получить ID из initDataUnsafe
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+            currentUserId = tg.initDataUnsafe.user.id;
+        }
+        
+        // Если не получилось, пробуем из initData (сырые данные)
+        if (!currentUserId && tg.initData) {
+            try {
+                const params = new URLSearchParams(tg.initData);
+                const userStr = params.get('user');
+                if (userStr) {
+                    const user = JSON.parse(decodeURIComponent(userStr));
+                    if (user && user.id) {
+                        currentUserId = user.id;
+                    }
+                }
+            } catch (e) {
+                console.error('Ошибка парсинга initData:', e);
+            }
+        }
+        
+        // Логируем для отладки
+        console.log('Current User ID:', currentUserId);
+        console.log('initDataUnsafe:', tg.initDataUnsafe);
         
         let currentTab = 'popular';
         let selectedStyleId = null;
 
-        // ФУНКЦИЯ ГЕНЕРАЦИИ ЗВЕЗД (ВЕРНУЛ)
         function getRatingHTML(uses) {
             let starsCount = 1;
             if (uses > 50) starsCount = 5;
@@ -177,7 +201,6 @@
             else if (uses > 10) starsCount = 3;
             else if (uses > 5) starsCount = 2;
 
-            // Рисуем закрашенные звезды
             let stars = '★'.repeat(starsCount);
             return `<span class="stars">${stars}</span>`;
         }
@@ -201,14 +224,26 @@
                     return;
                 }
             } else if (currentTab === 'mine') {
+                // УЛУЧШЕННАЯ ПРОВЕРКА
                 if (!currentUserId) {
-                    grid.innerHTML = '<div class="empty-message">Ошибка доступа. Перезайдите.</div>';
+                    grid.innerHTML = `
+                        <div class="empty-message">
+                            ⚠️ Не удалось определить ваш ID.<br>
+                            Попробуйте:<br>
+                            • Закрыть и открыть галерею заново<br>
+                            • Перезапустить бота командой /start<br>
+                            <br>
+                            <small>ID: ${currentUserId || 'undefined'}</small>
+                        </div>`;
                     return;
                 }
                 
-                // --- ИСПРАВЛЕНИЕ: ПРИВОДИМ К СТРОКЕ ---
-                displayStyles = displayStyles.filter(s => String(s.creator_id) === String(currentUserId));
-                // -------------------------------------
+                // Приводим оба ID к строкам для надежного сравнения
+                displayStyles = displayStyles.filter(s => {
+                    const styleCreatorId = String(s.creator_id);
+                    const myUserId = String(currentUserId);
+                    return styleCreatorId === myUserId;
+                });
                 
                 if (displayStyles.length === 0) {
                     grid.innerHTML = '<div class="empty-message">У вас нет стилей.<br>Создайте их в боте!</div>';
@@ -234,14 +269,14 @@
                 if (style.uses > 50) hitBadge = '<div class="hit-badge">ХИТ 🔥</div>';
 
                 let deleteBtn = '';
-                if (currentUserId && style.creator_id === currentUserId) {
+                // Проверяем владельца стиля
+                if (currentUserId && String(style.creator_id) === String(currentUserId)) {
                     deleteBtn = `
                         <div class="delete-btn" onclick="deleteStyle(event, '${style.id}')">
                             <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                         </div>`;
                 }
 
-                // ВЕРНУЛ ОТОБРАЖЕНИЕ ЗВЕЗД В HTML
                 card.innerHTML = `
                     ${hitBadge}
                     ${deleteBtn}
