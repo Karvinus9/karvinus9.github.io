@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Галерея Стилей</title>
+    <title>Галерея</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -24,7 +24,7 @@
             padding-bottom: 80px;
         }
 
-        /* --- ТАБЫ (ВКЛАДКИ) --- */
+        /* ТАБЫ */
         .tabs {
             position: sticky;
             top: 0;
@@ -32,19 +32,21 @@
             display: flex;
             padding: 10px 5px;
             z-index: 100;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            overflow-x: auto; /* Скролл если экраны узкие */
         }
 
         .tab {
             flex: 1;
             text-align: center;
-            padding: 8px 0;
-            font-size: 14px;
+            padding: 8px 4px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--hint-color);
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            transition: 0.3s;
+            transition: 0.2s;
+            white-space: nowrap;
         }
 
         .tab.active {
@@ -52,57 +54,60 @@
             border-bottom: 2px solid var(--button-color);
         }
 
-        /* --- СЕТКА --- */
+        /* СЕТКА */
         .gallery-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            padding: 10px;
+            grid-template-columns: repeat(2, 1fr); /* 2 колонки */
+            gap: 8px;
+            padding: 8px;
         }
 
         .style-card {
             background: var(--card-bg);
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             position: relative;
             cursor: pointer;
         }
 
         .style-image {
             width: 100%;
-            height: 180px;
+            height: 180px; /* Фиксированная высота */
             object-fit: cover;
             display: block;
         }
 
         .style-info {
-            padding: 8px;
-        }
-
-        .style-title {
-            font-size: 13px;
-            font-weight: bold;
-            margin: 0 0 4px 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .style-stats {
-            font-size: 11px;
-            color: var(--hint-color);
+            padding: 8px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        /* --- РЕЙТИНГ --- */
-        .stars { color: #FFD700; font-size: 10px; }
+        .style-stats {
+            font-size: 12px;
+            color: var(--hint-color);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .author-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-color);
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ХИТ и РЕЙТИНГ */
         .hit-badge {
             position: absolute;
-            top: 8px;
-            left: 8px;
+            top: 6px;
+            left: 6px;
             background: linear-gradient(45deg, #ff4b1f, #ff9068);
             color: white;
             padding: 2px 6px;
@@ -112,15 +117,15 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        /* --- КНОПКА УДАЛЕНИЯ --- */
+        /* КНОПКА УДАЛЕНИЯ */
         .delete-btn {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            background: rgba(255, 255, 255, 0.9);
+            top: 6px;
+            right: 6px;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 50%;
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -129,120 +134,98 @@
         }
         .delete-btn svg { width: 14px; height: 14px; fill: var(--danger-color); }
 
-        /* Выделение */
         .selected { outline: 3px solid var(--button-color); }
-        
-        .empty-message {
-            text-align: center;
-            padding: 40px;
-            color: var(--hint-color);
-            grid-column: span 2;
-        }
+        .empty-message { text-align: center; padding: 40px; color: var(--hint-color); grid-column: span 2; }
     </style>
 </head>
 <body>
 
-    <!-- Меню навигации -->
     <div class="tabs">
+        <div class="tab" onclick="switchTab('admin')">👑 Выбор редакции</div>
         <div class="tab active" onclick="switchTab('popular')">🔥 Популярные</div>
         <div class="tab" onclick="switchTab('new')">🆕 Новые</div>
         <div class="tab" onclick="switchTab('mine')">👤 Мои</div>
     </div>
 
-    <div class="gallery-grid" id="grid">
-        <!-- Сюда JS вставит карточки -->
-    </div>
+    <div class="gallery-grid" id="grid"></div>
 
-    <!-- Подключаем данные -->
     <script src="styles.js"></script>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        tg.MainButton.text = "ПРИМЕНИТЬ ВЫБРАННЫЙ СТИЛЬ";
+        tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
         
-        // Получаем ID пользователя из Telegram
         const currentUserId = tg.initDataUnsafe?.user?.id;
         
         let currentTab = 'popular';
         let selectedStyleId = null;
 
-        // Генерация звезд
-        function getRatingHTML(uses) {
-            let starsCount = 1;
-            if (uses > 50) starsCount = 5;
-            else if (uses > 20) starsCount = 4;
-            else if (uses > 10) starsCount = 3;
-            else if (uses > 5) starsCount = 2;
-
-            let stars = '★'.repeat(starsCount) + '☆'.repeat(5 - starsCount);
-            return `<span class="stars">${stars}</span>`;
-        }
-
         function renderGrid() {
             const grid = document.getElementById('grid');
-            grid.innerHTML = ''; // Очистка
+            grid.innerHTML = '';
 
             if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
                 grid.innerHTML = '<div class="empty-message">Галерея загружается...</div>';
                 return;
             }
 
-            // Фильтрация и сортировка
             let displayStyles = [...GALLERY_STYLES];
 
-            if (currentTab === 'popular') {
-                displayStyles.sort((a, b) => b.uses - a.uses);
-            } else if (currentTab === 'new') {
-                // Сортируем по дате (строки ISO сортируются правильно)
-                displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            // ФИЛЬТРАЦИЯ
+            if (currentTab === 'admin') {
+                // Только стили с флагом is_admin = true
+                displayStyles = displayStyles.filter(s => s.is_admin);
+                if (displayStyles.length === 0) {
+                    grid.innerHTML = '<div class="empty-message">Администраторы пока не добавили стилей.</div>';
+                    return;
+                }
             } else if (currentTab === 'mine') {
                 if (!currentUserId) {
-                    grid.innerHTML = '<div class="empty-message">Не удалось определить ваш ID.<br>Попробуйте перезайти.</div>';
+                    grid.innerHTML = '<div class="empty-message">Ошибка доступа. Перезайдите.</div>';
                     return;
                 }
                 displayStyles = displayStyles.filter(s => s.creator_id === currentUserId);
                 if (displayStyles.length === 0) {
-                    grid.innerHTML = '<div class="empty-message">У вас пока нет стилей.<br>Создайте их в боте!</div>';
+                    grid.innerHTML = '<div class="empty-message">У вас нет стилей.<br>Создайте их в боте!</div>';
                     return;
                 }
-                // Мои тоже сортируем по новизне
+            }
+
+            // СОРТИРОВКА
+            if (currentTab === 'popular' || currentTab === 'admin') {
+                displayStyles.sort((a, b) => b.uses - a.uses);
+            } else {
+                // Новые и Мои по дате
                 displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
             }
 
-            // Рендер карточек
+            // РЕНДЕР
             displayStyles.forEach(style => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
-                
-                // Клик по карточке
                 card.onclick = () => selectStyle(style.id);
 
-                // Бейдж ХИТ
                 let hitBadge = '';
-                if (style.uses > 50) {
-                    hitBadge = '<div class="hit-badge">ХИТ 🔥</div>';
-                }
+                if (style.uses > 50) hitBadge = '<div class="hit-badge">ХИТ 🔥</div>';
 
-                // Кнопка удаления (только для автора)
                 let deleteBtn = '';
                 if (currentUserId && style.creator_id === currentUserId) {
                     deleteBtn = `
                         <div class="delete-btn" onclick="deleteStyle(event, '${style.id}')">
                             <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                        </div>
-                    `;
+                        </div>`;
                 }
 
+                // Убрали <p class="style-title">, оставили только автора и огонек
                 card.innerHTML = `
                     ${hitBadge}
                     ${deleteBtn}
-                    <img class="style-image" src="${style.img}" loading="lazy" alt="${style.title}">
+                    <img class="style-image" src="${style.img}" loading="lazy">
                     <div class="style-info">
-                        <p class="style-title">${style.title}</p>
+                        <span class="author-name">@${style.author}</span>
                         <div class="style-stats">
-                            ${getRatingHTML(style.uses)}
                             <span>🔥 ${style.uses}</span>
                         </div>
                     </div>
@@ -253,15 +236,10 @@
 
         function switchTab(tabName) {
             currentTab = tabName;
-            
-            // Обновляем UI табов
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
             document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
-            
-            // Сбрасываем выбор
             selectedStyleId = null;
             tg.MainButton.hide();
-            
             renderGrid();
         }
 
@@ -273,14 +251,11 @@
             selectedStyleId = id;
             const newCard = document.getElementById(id);
             if (newCard) newCard.classList.add('selected');
-            
             tg.MainButton.show();
         }
 
-        // Удаление стиля
         function deleteStyle(event, id) {
-            event.stopPropagation(); // Чтобы не сработал клик по карточке
-            
+            event.stopPropagation();
             tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
                 if (confirmed) {
                     const data = { action: 'delete_style', style_id: id };
@@ -294,7 +269,6 @@
             tg.sendData(JSON.stringify(data));
         });
 
-        // Старт
         renderGrid();
     </script>
 </body>
