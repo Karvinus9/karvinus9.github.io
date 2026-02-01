@@ -195,7 +195,7 @@
 
             // ФИЛЬТРАЦИЯ
             if (currentTab === 'admin') {
-                displayStyles = displayStyles.filter(s => s.is_admin);
+                displayStyles = displayStyles.filter(s => s.is_admin === true);
                 if (displayStyles.length === 0) {
                     grid.innerHTML = '<div class="empty-message">Администраторы пока не добавили стилей.</div>';
                     return;
@@ -205,7 +205,11 @@
                     grid.innerHTML = '<div class="empty-message">Ошибка доступа. Перезайдите.</div>';
                     return;
                 }
-                displayStyles = displayStyles.filter(s => s.creator_id === currentUserId);
+                
+                // --- ИСПРАВЛЕНИЕ: ПРИВОДИМ К СТРОКЕ ---
+                displayStyles = displayStyles.filter(s => String(s.creator_id) === String(currentUserId));
+                // -------------------------------------
+                
                 if (displayStyles.length === 0) {
                     grid.innerHTML = '<div class="empty-message">У вас нет стилей.<br>Создайте их в боте!</div>';
                     return;
