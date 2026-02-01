@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Галерея Стилей</title>
-    <!-- Подключаем Telegram Web App JS -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
             --bg-color: var(--tg-theme-bg-color, #f4f4f9);
             --text-color: var(--tg-theme-text-color, #222);
+            --hint-color: var(--tg-theme-hint-color, #999);
             --button-color: var(--tg-theme-button-color, #0088cc);
-            --button-text-color: var(--tg-theme-button-text-color, #fff);
             --card-bg: var(--tg-theme-secondary-bg-color, #fff);
+            --danger-color: #ff4d4d;
         }
 
         body {
@@ -20,121 +20,229 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 10px;
-            padding-bottom: 80px; /* Отступ для главной кнопки */
+            padding: 0;
+            padding-bottom: 80px;
         }
 
-        .header {
+        /* --- ТАБЫ (ВКЛАДКИ) --- */
+        .tabs {
+            position: sticky;
+            top: 0;
+            background: var(--bg-color);
+            display: flex;
+            padding: 10px 5px;
+            z-index: 100;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            flex: 1;
             text-align: center;
-            margin-bottom: 20px;
+            padding: 8px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--hint-color);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: 0.3s;
         }
 
-        /* Сетка в стиле Pinterest */
+        .tab.active {
+            color: var(--button-color);
+            border-bottom: 2px solid var(--button-color);
+        }
+
+        /* --- СЕТКА --- */
         .gallery-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            gap: 10px;
+            padding: 10px;
         }
 
         .style-card {
             background: var(--card-bg);
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
             position: relative;
             cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .style-card:active {
-            transform: scale(0.97);
         }
 
         .style-image {
             width: 100%;
-            height: 200px;
+            height: 180px;
             object-fit: cover;
             display: block;
         }
 
         .style-info {
-            padding: 10px;
+            padding: 8px;
         }
 
         .style-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             margin: 0 0 4px 0;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            white-space: nowrap;
             overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .style-stats {
-            font-size: 12px;
-            color: #888;
+            font-size: 11px;
+            color: var(--hint-color);
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
-        /* Выбранная карточка */
-        .selected {
-            outline: 3px solid var(--button-color);
+        /* --- РЕЙТИНГ --- */
+        .stars { color: #FFD700; font-size: 10px; }
+        .hit-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: linear-gradient(45deg, #ff4b1f, #ff9068);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* --- КНОПКА УДАЛЕНИЯ --- */
+        .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .delete-btn svg { width: 14px; height: 14px; fill: var(--danger-color); }
+
+        /* Выделение */
+        .selected { outline: 3px solid var(--button-color); }
+        
+        .empty-message {
+            text-align: center;
+            padding: 40px;
+            color: var(--hint-color);
+            grid-column: span 2;
         }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>🔥 Популярные стили</h2>
-        <p style="font-size: 14px; color: #666;">Нажмите на стиль, чтобы применить его</p>
+    <!-- Меню навигации -->
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('popular')">🔥 Популярные</div>
+        <div class="tab" onclick="switchTab('new')">🆕 Новые</div>
+        <div class="tab" onclick="switchTab('mine')">👤 Мои</div>
     </div>
 
     <div class="gallery-grid" id="grid">
-        <!-- Карточки будут добавлены через JS -->
+        <!-- Сюда JS вставит карточки -->
     </div>
 
-    <!-- Подключаем файл с данными, который сгенерирует бот -->
+    <!-- Подключаем данные -->
     <script src="styles.js"></script>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.MainButton.text = "ПРИМЕНИТЬ ВЫБРАННЫЙ СТИЛЬ";
-        tg.MainButton.color = "#2b2b2b"; // Темная кнопка
-        tg.MainButton.textColor = "#ffffff";
-
+        
+        // Получаем ID пользователя из Telegram
+        const currentUserId = tg.initDataUnsafe?.user?.id;
+        
+        let currentTab = 'popular';
         let selectedStyleId = null;
+
+        // Генерация звезд
+        function getRatingHTML(uses) {
+            let starsCount = 1;
+            if (uses > 50) starsCount = 5;
+            else if (uses > 20) starsCount = 4;
+            else if (uses > 10) starsCount = 3;
+            else if (uses > 5) starsCount = 2;
+
+            let stars = '★'.repeat(starsCount) + '☆'.repeat(5 - starsCount);
+            return `<span class="stars">${stars}</span>`;
+        }
 
         function renderGrid() {
             const grid = document.getElementById('grid');
-            
-            // Проверка, загрузились ли данные
+            grid.innerHTML = ''; // Очистка
+
             if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                grid.innerHTML = '<p style="text-align:center; width:200%;">Галерея пока пуста или обновляется...</p>';
+                grid.innerHTML = '<div class="empty-message">Галерея загружается...</div>';
                 return;
             }
 
-            // Сортировка: Сначала популярные
-            const sortedStyles = GALLERY_STYLES.sort((a, b) => b.uses - a.uses);
+            // Фильтрация и сортировка
+            let displayStyles = [...GALLERY_STYLES];
 
-            sortedStyles.forEach(style => {
+            if (currentTab === 'popular') {
+                displayStyles.sort((a, b) => b.uses - a.uses);
+            } else if (currentTab === 'new') {
+                // Сортируем по дате (строки ISO сортируются правильно)
+                displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            } else if (currentTab === 'mine') {
+                if (!currentUserId) {
+                    grid.innerHTML = '<div class="empty-message">Не удалось определить ваш ID.<br>Попробуйте перезайти.</div>';
+                    return;
+                }
+                displayStyles = displayStyles.filter(s => s.creator_id === currentUserId);
+                if (displayStyles.length === 0) {
+                    grid.innerHTML = '<div class="empty-message">У вас пока нет стилей.<br>Создайте их в боте!</div>';
+                    return;
+                }
+                // Мои тоже сортируем по новизне
+                displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            }
+
+            // Рендер карточек
+            displayStyles.forEach(style => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
+                
+                // Клик по карточке
                 card.onclick = () => selectStyle(style.id);
 
-                // Обрезаем длинные названия
-                let displayTitle = style.title || "Стиль без названия";
-                if (displayTitle.length > 30) displayTitle = displayTitle.substring(0, 30) + '...';
+                // Бейдж ХИТ
+                let hitBadge = '';
+                if (style.uses > 50) {
+                    hitBadge = '<div class="hit-badge">ХИТ 🔥</div>';
+                }
+
+                // Кнопка удаления (только для автора)
+                let deleteBtn = '';
+                if (currentUserId && style.creator_id === currentUserId) {
+                    deleteBtn = `
+                        <div class="delete-btn" onclick="deleteStyle(event, '${style.id}')">
+                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </div>
+                    `;
+                }
 
                 card.innerHTML = `
-                    <img class="style-image" src="${style.img}" loading="lazy" alt="${displayTitle}">
+                    ${hitBadge}
+                    ${deleteBtn}
+                    <img class="style-image" src="${style.img}" loading="lazy" alt="${style.title}">
                     <div class="style-info">
-                        <p class="style-title">${displayTitle}</p>
+                        <p class="style-title">${style.title}</p>
                         <div class="style-stats">
-                            <span>👤 ${style.author}</span>
+                            ${getRatingHTML(style.uses)}
                             <span>🔥 ${style.uses}</span>
                         </div>
                     </div>
@@ -143,10 +251,24 @@
             });
         }
 
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // Обновляем UI табов
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Сбрасываем выбор
+            selectedStyleId = null;
+            tg.MainButton.hide();
+            
+            renderGrid();
+        }
+
         function selectStyle(id) {
             if (selectedStyleId) {
-                const oldCard = document.getElementById(selectedStyleId);
-                if (oldCard) oldCard.classList.remove('selected');
+                const old = document.getElementById(selectedStyleId);
+                if (old) old.classList.remove('selected');
             }
             selectedStyleId = id;
             const newCard = document.getElementById(id);
@@ -155,12 +277,24 @@
             tg.MainButton.show();
         }
 
+        // Удаление стиля
+        function deleteStyle(event, id) {
+            event.stopPropagation(); // Чтобы не сработал клик по карточке
+            
+            tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
+                if (confirmed) {
+                    const data = { action: 'delete_style', style_id: id };
+                    tg.sendData(JSON.stringify(data));
+                }
+            });
+        }
+
         tg.MainButton.onClick(() => {
             const data = { action: 'use_gallery_style', style_id: selectedStyleId };
             tg.sendData(JSON.stringify(data));
         });
 
-        // Запуск рендера
+        // Старт
         renderGrid();
     </script>
 </body>
