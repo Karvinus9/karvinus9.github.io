@@ -3,12 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Галерея</title>
     <script>
+        // Cache busting - добавляем версию
+        const APP_VERSION = '1.0.5';
+        const storedVersion = localStorage.getItem('app_version');
+        
+        if (storedVersion !== APP_VERSION) {
+            console.log('🔄 Обновление версии:', storedVersion, '→', APP_VERSION);
+            // Очищаем старый кэш
+            try {
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('img_cache_')) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(key => localStorage.removeItem(key));
+                localStorage.setItem('app_version', APP_VERSION);
+                console.log('✓ Кэш очищен');
+            } catch (e) {
+                console.error('Ошибка очистки кэша:', e);
+            }
+        }
+        
         window.TelegramWebAppReady = false;
         setTimeout(() => {
             if (!window.TelegramWebAppReady) {
-                console.warn('Telegram WebApp SDK не загрузился, используем fallback');
+                console.warn('Telegram WebApp SDK не загрузился');
                 window.Telegram = window.Telegram || {
                     WebApp: {
                         ready: () => {},
@@ -27,8 +53,7 @@
                             else callback(false);
                         },
                         sendData: (data) => {
-                            console.log('SendData (fallback):', data);
-                            alert('Данные: ' + data);
+                            console.log('SendData:', data);
                         }
                     }
                 };
@@ -49,6 +74,10 @@
             --button-color: var(--tg-theme-button-color, #0088cc);
             --card-bg: var(--tg-theme-secondary-bg-color, #fff);
             --danger-color: #ff4d4d;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -490,6 +519,10 @@
             color: #44ff44;
         }
 
+        .debug-warning {
+            color: #ffaa00;
+        }
+
         .loader {
             grid-column: span 2;
             display: flex;
@@ -547,6 +580,28 @@
         .debug-toggle:active {
             transform: scale(0.9);
         }
+
+        .clear-cache-btn {
+            position: fixed;
+            bottom: 150px;
+            right: 16px;
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 87, 34, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            color: white;
+        }
+
+        .clear-cache-btn:active {
+            transform: scale(0.9);
+        }
     </style>
 </head>
 <body>
@@ -567,6 +622,7 @@
         <div class="loader"><div class="spinner"></div></div>
     </div>
 
+    <div class="clear-cache-btn" onclick="clearAllCache()" title="Очистить кэш">🗑️</div>
     <div class="debug-toggle" onclick="toggleDebug()">🔧</div>
     <div class="debug-info" id="debugInfo"></div>
 
@@ -581,7 +637,7 @@
             tg.ready();
             tg.expand();
             tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
-            console.log('✓ Telegram WebApp инициализирован');
+            console.log('✓ Telegram WebApp v' + (tg.version || 'unknown'));
         } catch (e) {
             console.error('✗ Ошибка инициализации:', e);
             tg = window.Telegram?.WebApp || {
@@ -593,36 +649,45 @@
             };
         }
         
-        // ========== СПИСОК CORS ПРОКСИ ==========
-        
-        const CORS_PROXIES = [
-            '', // Прямая загрузка (без прокси)
-            'https://corsproxy.io/?', 
-            'https://api.allorigins.win/raw?url=',
-            'https://cors-anywhere.herokuapp.com/'
-        ];
-
-        let currentProxyIndex = 0;
-        
-        // ========== СТАТИСТИКА ==========
+        // ========== ДИАГНОСТИКА ==========
         
         const diagnostics = {
+            appVersion: APP_VERSION,
             telegramVersion: null,
             platform: null,
+            userAgent: navigator.userAgent,
+            webViewEngine: null,
             userIdMethods: [],
             sdkLoaded: false,
             initDataAvailable: false,
             errors: [],
-            proxyUsed: 'none',
-            corsBlocked: false
+            loadErrors: []
         };
+
+        // Определяем движок WebView
+        function detectWebView() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Chrome/')) {
+                const match = ua.match(/Chrome\/(\d+)/);
+                return match ? `Chromium ${match[1]}` : 'Chromium';
+            }
+            if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
+                return 'WebKit (Safari)';
+            }
+            if (ua.includes('Gecko/')) {
+                return 'Gecko (Firefox)';
+            }
+            return 'Unknown';
+        }
+
+        diagnostics.webViewEngine = detectWebView();
 
         const loadStats = {
             totalImages: 0,
             loadedImages: 0,
             failedImages: 0,
             retriedImages: 0,
-            proxyAttempts: 0,
+            cacheBusted: 0,
             startTime: Date.now()
         };
 
@@ -645,13 +710,39 @@
             }
         }
 
+        function clearAllCache() {
+            if (confirm('🗑️ Очистить весь кэш и перезагрузить?\n\nЭто может помочь если изображения не грузятся.')) {
+                try {
+                    // Очищаем localStorage
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('img_cache_') || key.startsWith('telegram_'))) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+                    
+                    // Очищаем memory кэш
+                    imageCache.clear();
+                    
+                    showConnectionStatus('✓ Кэш очищен! Перезагружаем...', 2000);
+                    
+                    setTimeout(() => {
+                        window.location.reload(true);
+                    }, 1000);
+                } catch (e) {
+                    alert('Ошибка очистки кэша: ' + e.message);
+                }
+            }
+        }
+
         function collectDiagnostics() {
             try {
                 diagnostics.sdkLoaded = !!window.Telegram?.WebApp;
                 diagnostics.telegramVersion = tg?.version || 'unknown';
                 diagnostics.platform = tg?.platform || navigator.platform;
                 diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
-                diagnostics.proxyUsed = currentProxyIndex > 0 ? CORS_PROXIES[currentProxyIndex] : 'none';
                 
                 diagnostics.userIdMethods = [];
                 
@@ -690,13 +781,18 @@
             collectDiagnostics();
             
             const debugInfo = document.getElementById('debugInfo');
+            const loadSuccessRate = loadStats.totalImages > 0 
+                ? ((loadStats.loadedImages / loadStats.totalImages) * 100).toFixed(0) 
+                : 0;
+
             debugInfo.innerHTML = `
                 <div class="debug-section">
-                    <div class="debug-title">🔧 TELEGRAM WEB APP</div>
-                    SDK: <span class="${diagnostics.sdkLoaded ? 'debug-success' : 'debug-error'}">${diagnostics.sdkLoaded ? 'ДА' : 'НЕТ'}</span><br>
-                    Версия: ${diagnostics.telegramVersion}<br>
+                    <div class="debug-title">📱 УСТРОЙСТВО & ДВИЖОК</div>
+                    App версия: ${diagnostics.appVersion}<br>
+                    Telegram: ${diagnostics.telegramVersion}<br>
                     Платформа: ${diagnostics.platform}<br>
-                    InitData: <span class="${diagnostics.initDataAvailable ? 'debug-success' : 'debug-error'}">${diagnostics.initDataAvailable ? 'ДА' : 'НЕТ'}</span>
+                    WebView: <span class="debug-warning">${diagnostics.webViewEngine}</span><br>
+                    <small>${diagnostics.userAgent}</small>
                 </div>
 
                 <div class="debug-section">
@@ -705,78 +801,75 @@
                         const isSuccess = m.startsWith('✓');
                         return `<div class="${isSuccess ? 'debug-success' : 'debug-error'}">${m}</div>`;
                     }).join('')}<br>
-                    <b>Результат:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
+                    <b>User ID:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
                     Источник: ${userIdSource}
                 </div>
 
                 <div class="debug-section">
                     <div class="debug-title">🖼️ ЗАГРУЗКА ИЗОБРАЖЕНИЙ</div>
                     Всего: ${loadStats.totalImages}<br>
-                    <span class="debug-success">✓ Загружено: ${loadStats.loadedImages}</span><br>
-                    <span class="debug-error">✗ Ошибок: ${loadStats.failedImages}</span><br>
+                    <span class="${loadStats.loadedImages > 0 ? 'debug-success' : 'debug-error'}">✓ Загружено: ${loadStats.loadedImages}</span><br>
+                    <span class="${loadStats.failedImages > 0 ? 'debug-error' : 'debug-success'}">✗ Ошибок: ${loadStats.failedImages}</span><br>
                     🔄 Retry: ${loadStats.retriedImages}<br>
-                    🌐 Через прокси: ${loadStats.proxyAttempts}<br>
-                    Кэш: ${imageCache.size}<br>
-                    Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
+                    💥 Cache busted: ${loadStats.cacheBusted}<br>
+                    📊 Успешность: <span class="${loadSuccessRate > 50 ? 'debug-success' : 'debug-error'}">${loadSuccessRate}%</span><br>
+                    💾 В кэше: ${imageCache.size}<br>
+                    ⏱️ Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
                 </div>
 
+                ${diagnostics.loadErrors.length > 0 ? `
                 <div class="debug-section">
-                    <div class="debug-title">🔌 CORS & ПРОКСИ</div>
-                    Текущий прокси: <span class="${currentProxyIndex > 0 ? 'debug-error' : 'debug-success'}">${diagnostics.proxyUsed}</span><br>
-                    CORS блокировка: <span class="${loadStats.failedImages > 2 ? 'debug-error' : 'debug-success'}">${loadStats.failedImages > 2 ? 'ВЕРОЯТНО' : 'НЕТ'}</span><br>
-                    Доступные прокси: ${CORS_PROXIES.length}
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">🌐 СЕТЬ</div>
-                    Online: ${navigator.onLine ? '✓' : '✗'}<br>
-                    UA: ${navigator.userAgent.substring(0, 60)}...
-                </div>
-
-                ${loadStats.failedImages > 0 ? `
-                <div class="debug-section">
-                    <div class="debug-title debug-error">⚠️ ПРОБЛЕМА ОБНАРУЖЕНА</div>
-                    <div class="debug-error">
-                        Изображения не грузятся!<br><br>
-                        <b>Возможные причины:</b><br>
-                        1. CDN заблокирован оператором РФ<br>
-                        2. CORS политика хостинга<br>
-                        3. Файрвол блокирует запросы<br><br>
-                        <b>Решение:</b><br>
-                        • Используйте VPN<br>
-                        • Попросите админа разместить файлы на другом хостинге<br>
-                        • Нажмите "Повторить" на карточках
-                    </div>
+                    <div class="debug-title debug-error">❌ ОШИБКИ ЗАГРУЗКИ</div>
+                    ${diagnostics.loadErrors.slice(-5).map(e => `<div class="debug-error">${e}</div>`).join('')}
                 </div>
                 ` : ''}
 
-                ${diagnostics.errors.length > 0 ? `
                 <div class="debug-section">
-                    <div class="debug-title debug-error">❌ ОШИБКИ</div>
-                    ${diagnostics.errors.map(e => `<div class="debug-error">${e}</div>`).join('')}
+                    <div class="debug-title">💡 РЕКОМЕНДАЦИИ</div>
+                    ${loadStats.failedImages > 2 ? `
+                        <div class="debug-error">⚠️ Много ошибок загрузки!</div>
+                        <div class="debug-warning">
+                        • Попробуйте очистить кэш (🗑️ кнопка)<br>
+                        • Проверьте интернет соединение<br>
+                        • Перезапустите Telegram<br>
+                        • Обновите Telegram до последней версии
+                        </div>
+                    ` : ''}
+                    ${diagnostics.webViewEngine.includes('Unknown') ? `
+                        <div class="debug-warning">⚠️ Неизвестный движок WebView</div>
+                    ` : ''}
+                    ${loadStats.loadedImages === loadStats.totalImages && loadStats.totalImages > 0 ? `
+                        <div class="debug-success">✓ Всё работает отлично!</div>
+                    ` : ''}
                 </div>
-                ` : ''}
+
+                <div class="debug-section">
+                    <div class="debug-title">🔧 ДЕЙСТВИЯ</div>
+                    <button class="retry-btn" onclick="clearAllCache()" style="width: 100%; margin: 4px 0;">
+                        🗑️ Очистить кэш и перезагрузить
+                    </button>
+                    <button class="retry-btn" onclick="renderGrid()" style="width: 100%; margin: 4px 0; background: #ff9800;">
+                        🔄 Перезагрузить галерею
+                    </button>
+                </div>
             `;
         }
         
-        // ========== УМНАЯ ЗАГРУЗКА С ПРОКСИ ==========
+        // ========== УМНАЯ ЗАГРУЗКА С CACHE BUSTING ==========
         
         const imageCache = new Map();
-        const MAX_RETRIES = 4; // Увеличили для прокси
-        const RETRY_DELAYS = [500, 1000, 2000, 3000];
+        const MAX_RETRIES = 3;
+        const RETRY_DELAYS = [800, 1500, 3000];
 
-        function getProxiedUrl(originalUrl, proxyIndex = 0) {
-            if (proxyIndex >= CORS_PROXIES.length) {
-                return originalUrl; // Вернули к оригиналу
-            }
-            
-            const proxy = CORS_PROXIES[proxyIndex];
-            if (!proxy) return originalUrl;
-            
-            return proxy + encodeURIComponent(originalUrl);
+        // Cache busting для imageban.ru
+        function addCacheBuster(url) {
+            const separator = url.includes('?') ? '&' : '?';
+            const timestamp = Date.now();
+            const random = Math.random().toString(36).substring(7);
+            return `${url}${separator}cb=${timestamp}_${random}`;
         }
 
-        function loadImageWithRetry(img, attempt = 0, proxyIndex = 0) {
+        function loadImageWithRetry(img, attempt = 0, forceCacheBust = false) {
             const originalSrc = img.dataset.src;
             if (!originalSrc) return;
 
@@ -784,59 +877,65 @@
             const loadingIndicator = container?.querySelector('.loading-indicator');
             const retryInfo = loadingIndicator?.querySelector('.retry-info');
 
-            // Проверяем кэш
-            if (imageCache.has(originalSrc)) {
-                img.src = originalSrc;
+            // Проверяем memory кэш (не localStorage!)
+            const cacheKey = originalSrc;
+            if (!forceCacheBust && imageCache.has(cacheKey)) {
+                img.src = imageCache.get(cacheKey);
                 img.classList.add('loaded');
                 loadStats.loadedImages++;
+                if (loadingIndicator) {
+                    setTimeout(() => loadingIndicator.remove(), 200);
+                }
                 return;
             }
 
             // Обновляем статус
             if (retryInfo) {
-                if (proxyIndex > 0) {
-                    retryInfo.textContent = `Прокси ${proxyIndex}/${CORS_PROXIES.length - 1}...`;
-                    loadStats.proxyAttempts++;
+                if (forceCacheBust || attempt > 0) {
+                    retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}${forceCacheBust ? ' (без кэша)' : ''}`;
                 } else {
-                    retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}`;
+                    retryInfo.textContent = 'Загрузка...';
                 }
             }
 
-            const srcToLoad = getProxiedUrl(originalSrc, proxyIndex);
+            // Добавляем cache buster при retry или для imageban.ru
+            let srcToLoad = originalSrc;
+            if (forceCacheBust || attempt > 0 || originalSrc.includes('imageban.ru')) {
+                srcToLoad = addCacheBuster(originalSrc);
+                loadStats.cacheBusted++;
+            }
+
             const tempImg = new Image();
             
-            // Увеличили таймаут для прокси
-            const timeout = proxyIndex > 0 ? 20000 : 10000;
+            // Таймаут зависит от попытки
+            const timeout = 8000 + (attempt * 2000); // 8s, 10s, 12s
             const loadTimeout = setTimeout(() => {
                 tempImg.src = '';
                 handleLoadError();
             }, timeout);
 
-            // Для прокси серверов иногда нужны дополнительные заголовки
-            if (proxyIndex > 0) {
-                tempImg.crossOrigin = 'anonymous';
-            }
+            // Важно для imageban.ru
+            tempImg.crossOrigin = 'anonymous';
+            
+            // Отключаем кэширование браузера
+            tempImg.setAttribute('referrerpolicy', 'no-referrer');
 
             tempImg.onload = () => {
                 clearTimeout(loadTimeout);
                 
-                // Успех! Сохраняем в кэш
-                img.src = tempImg.src;
+                // Успех!
+                img.src = srcToLoad;
                 img.classList.add('loaded');
-                imageCache.set(originalSrc, tempImg.src);
+                
+                // Сохраняем в memory кэш
+                imageCache.set(cacheKey, srcToLoad);
                 
                 if (loadingIndicator) {
                     setTimeout(() => loadingIndicator.remove(), 400);
                 }
 
                 loadStats.loadedImages++;
-                
-                // Обновляем текущий рабочий прокси
-                if (proxyIndex > 0 && currentProxyIndex === 0) {
-                    currentProxyIndex = proxyIndex;
-                    console.log(`✓ Прокси ${proxyIndex} работает, переключаемся`);
-                    showConnectionStatus(`✓ Загрузка через прокси ${proxyIndex}`, 2000);
-                }
+                console.log(`✓ Загружено [${loadStats.loadedImages}/${loadStats.totalImages}]:`, originalSrc.substring(0, 60));
 
                 if (loadStats.loadedImages === 1) {
                     showConnectionStatus('✓ Загрузка работает', 1500);
@@ -847,31 +946,26 @@
 
             function handleLoadError() {
                 clearTimeout(loadTimeout);
-                console.warn(`✗ Ошибка загрузки: ${srcToLoad.substring(0, 100)}`);
                 
-                // Сначала пробуем следующий прокси
-                if (proxyIndex < CORS_PROXIES.length - 1) {
-                    loadStats.retriedImages++;
-                    setTimeout(() => {
-                        loadImageWithRetry(img, attempt, proxyIndex + 1);
-                    }, 500);
-                }
-                // Потом делаем retry с текущим прокси
-                else if (attempt < MAX_RETRIES) {
+                const errorMsg = `${new Date().toLocaleTimeString()} - Ошибка: ${originalSrc.substring(0, 50)}... (попытка ${attempt + 1})`;
+                console.error('✗', errorMsg);
+                diagnostics.loadErrors.push(errorMsg);
+                
+                if (attempt < MAX_RETRIES) {
                     loadStats.retriedImages++;
                     const delay = RETRY_DELAYS[attempt] || 3000;
+                    
                     setTimeout(() => {
-                        loadImageWithRetry(img, attempt + 1, currentProxyIndex);
+                        // При повторной попытке принудительно игнорируем кэш
+                        loadImageWithRetry(img, attempt + 1, true);
                     }, delay);
-                } 
-                // Все попытки исчерпаны
-                else {
+                } else {
+                    // Все попытки исчерпаны
                     loadStats.failedImages++;
                     showErrorPlaceholder(container, originalSrc);
                     
                     if (loadStats.failedImages === 3) {
-                        diagnostics.corsBlocked = true;
-                        showConnectionStatus('⚠️ CORS блокировка обнаружена', 4000);
+                        showConnectionStatus('⚠️ Проблемы с загрузкой - нажмите 🔧', 4000);
                     }
                 }
             }
@@ -889,7 +983,7 @@
                 <svg viewBox="0 0 24 24">
                     <path d="M21.9,21.9l-8.49-8.49l0,0L3.59,3.59l0,0L2.1,2.1L0.69,3.51L3,5.83V19c0,1.1,0.9,2,2,2h13.17l2.31,2.31L21.9,21.9z M5,18 l3.5-4.5l2.5,3.01L12.17,15l3,3H5z M21,18.17L5.83,3H19c1.1,0,2,0.9,2,2V18.17z"/>
                 </svg>
-                <div class="error-text">CDN заблокирован<br>Нажмите 🔧 для решения</div>
+                <div class="error-text">Не удалось загрузить<br><small>Нажмите 🔧 для помощи</small></div>
                 <button class="retry-btn" onclick="retryImage('${src}', this)">Повторить</button>
             `;
             container.appendChild(errorDiv);
@@ -904,33 +998,33 @@
             loadingIndicator.className = 'loading-indicator';
             loadingIndicator.innerHTML = `
                 <div class="loading-spinner"></div>
-                <div class="retry-info">Пробуем прокси...</div>
+                <div class="retry-info">Повторная попытка...</div>
             `;
             container.appendChild(loadingIndicator);
 
             const img = container.querySelector('.style-image');
             img.dataset.src = src;
             
-            // При ручном retry сразу пробуем прокси
-            loadImageWithRetry(img, 0, currentProxyIndex > 0 ? currentProxyIndex : 1);
+            // При ручном retry - принудительно без кэша
+            loadImageWithRetry(img, 0, true);
         };
 
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    loadImageWithRetry(img, 0, currentProxyIndex);
+                    loadImageWithRetry(img, 0, false);
                     imageObserver.unobserve(img);
                 }
             });
         }, {
-            rootMargin: '100px'
+            rootMargin: '150px' // Увеличили для более ранней загрузки
         });
 
         function preloadPriorityImages(count = 2) {
             const images = document.querySelectorAll('.style-image[data-src]');
             Array.from(images).slice(0, count).forEach(img => {
-                loadImageWithRetry(img, 0, currentProxyIndex);
+                loadImageWithRetry(img, 0, false);
                 imageObserver.unobserve(img);
             });
         }
@@ -996,6 +1090,7 @@
         }
         
         const currentUserId = getUserId();
+        console.log(`👤 User ID: ${currentUserId} (${userIdSource})`);
         
         // ========== ОСНОВНОЙ КОД ==========
         
@@ -1021,14 +1116,15 @@
             loadStats.loadedImages = 0;
             loadStats.failedImages = 0;
             loadStats.retriedImages = 0;
-            loadStats.proxyAttempts = 0;
+            loadStats.cacheBusted = 0;
             loadStats.startTime = Date.now();
+            diagnostics.loadErrors = [];
 
             if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
                 grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
                 setTimeout(() => {
                     if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                        grid.innerHTML = '<div class="empty-message">Галерея недоступна<br>Нажмите 🔧 для диагностики</div>';
+                        grid.innerHTML = '<div class="empty-message">Галерея недоступна<br><small>Нажмите 🔧 для диагностики</small></div>';
                     }
                 }, 3000);
                 return;
@@ -1069,6 +1165,7 @@
             }
 
             loadStats.totalImages = displayStyles.length;
+            console.log(`📊 Рендерим ${loadStats.totalImages} стилей`);
 
             displayStyles.forEach((style, index) => {
                 const card = document.createElement('div');
@@ -1187,15 +1284,16 @@
         }
 
         // Инициализация
+        console.log('🚀 Запуск галереи v' + APP_VERSION);
         renderGrid();
 
-        // Автодиагностика через 3 секунды
+        // Автодиагностика
         setTimeout(() => {
             if (loadStats.failedImages > 2) {
                 console.warn('⚠️ Обнаружены проблемы с загрузкой');
-                showConnectionStatus('⚠️ Проблемы с CDN - нажмите 🔧', 5000);
+                showConnectionStatus('⚠️ Проблемы с загрузкой - нажмите 🔧', 5000);
             }
-        }, 3000);
+        }, 4000);
     </script>
 </body>
 </html>
