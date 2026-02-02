@@ -4,7 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Галерея</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Поддержка старых и новых версий Telegram -->
+    <script>
+        // Фоллбек если telegram-web-app.js не загрузится
+        window.TelegramWebAppReady = false;
+        setTimeout(() => {
+            if (!window.TelegramWebAppReady) {
+                console.warn('Telegram WebApp SDK не загрузился, используем fallback');
+                window.Telegram = window.Telegram || {
+                    WebApp: {
+                        ready: () => {},
+                        expand: () => {},
+                        MainButton: {
+                            text: '',
+                            show: () => {},
+                            hide: () => {},
+                            onClick: () => {}
+                        },
+                        HapticFeedback: null,
+                        initData: '',
+                        initDataUnsafe: {},
+                        showConfirm: (msg, callback) => {
+                            if (confirm(msg)) callback(true);
+                            else callback(false);
+                        },
+                        sendData: (data) => {
+                            console.log('SendData (fallback):', data);
+                            alert('Данные: ' + data);
+                        }
+                    }
+                };
+            }
+        }, 2000);
+    </script>
+    <script src="https://telegram.org/js/telegram-web-app.js" onerror="console.error('Failed to load Telegram SDK')"></script>
+    <script>
+        // Проверяем что SDK загрузился
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.TelegramWebAppReady = true;
+        }
+    </script>
     <style>
         :root {
             --bg-color: var(--tg-theme-bg-color, #f4f4f9);
@@ -125,7 +164,6 @@
             100% { background-position: 200% 0; }
         }
 
-        /* Индикатор загрузки на карточке */
         .loading-indicator {
             position: absolute;
             top: 50%;
@@ -193,7 +231,6 @@
             z-index: 1;
         }
 
-        /* Ошибка загрузки */
         .error-placeholder {
             position: absolute;
             top: 0;
@@ -419,21 +456,48 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
-        
+
+        /* Диагностика */
         .debug-info {
             position: fixed;
-            bottom: 80px;
+            bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            padding: 12px;
+            background: rgba(0,0,0,0.95);
+            color: #00ff00;
+            padding: 16px;
             font-size: 10px;
             display: none;
             z-index: 1000;
-            font-family: monospace;
-            max-height: 300px;
+            font-family: 'Courier New', monospace;
+            max-height: 50vh;
             overflow-y: auto;
+            border-top: 2px solid #00ff00;
+        }
+
+        .debug-info.show {
+            display: block;
+        }
+
+        .debug-section {
+            margin: 8px 0;
+            padding: 8px;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+        }
+
+        .debug-title {
+            color: #ffff00;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .debug-error {
+            color: #ff4444;
+        }
+
+        .debug-success {
+            color: #44ff44;
         }
 
         .loader {
@@ -472,6 +536,28 @@
             width: 0;
             height: 0;
         }
+
+        /* Кнопка диагностики */
+        .debug-toggle {
+            position: fixed;
+            bottom: 90px;
+            right: 16px;
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .debug-toggle:active {
+            transform: scale(0.9);
+        }
     </style>
 </head>
 <body>
@@ -491,17 +577,166 @@
     <div class="gallery-grid" id="grid">
         <div class="loader"><div class="spinner"></div></div>
     </div>
-    
+
+    <div class="debug-toggle" onclick="toggleDebug()">🔧</div>
     <div class="debug-info" id="debugInfo"></div>
 
     <script src="styles.js"></script>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
+        // ========== ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP ==========
         
-        // ========== ДИАГНОСТИКА И RETRY СИСТЕМА ==========
+        let tg;
+        try {
+            tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand();
+            tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
+            console.log('✓ Telegram WebApp инициализирован');
+        } catch (e) {
+            console.error('✗ Ошибка инициализации Telegram WebApp:', e);
+            tg = window.Telegram?.WebApp || {
+                ready: () => {},
+                expand: () => {},
+                MainButton: { text: '', show: () => {}, hide: () => {}, onClick: () => {} },
+                showConfirm: (msg, cb) => cb(confirm(msg)),
+                sendData: (data) => console.log('SendData:', data)
+            };
+        }
+        
+        // ========== РАСШИРЕННАЯ ДИАГНОСТИКА ==========
+        
+        const diagnostics = {
+            telegramVersion: null,
+            webAppVersion: null,
+            platform: null,
+            userIdMethods: [],
+            sdkLoaded: false,
+            initDataAvailable: false,
+            errors: []
+        };
+
+        function collectDiagnostics() {
+            try {
+                diagnostics.sdkLoaded = !!window.Telegram?.WebApp;
+                diagnostics.telegramVersion = tg?.version || 'unknown';
+                diagnostics.webAppVersion = tg?.version || 'N/A';
+                diagnostics.platform = tg?.platform || navigator.platform;
+                diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
+                
+                // Проверяем все возможные источники
+                if (tg?.initDataUnsafe?.user?.id) {
+                    diagnostics.userIdMethods.push('✓ initDataUnsafe.user.id');
+                } else {
+                    diagnostics.userIdMethods.push('✗ initDataUnsafe.user.id');
+                }
+
+                const urlUserId = new URLSearchParams(window.location.search).get('user_id');
+                if (urlUserId) {
+                    diagnostics.userIdMethods.push('✓ URL parameter');
+                } else {
+                    diagnostics.userIdMethods.push('✗ URL parameter');
+                }
+
+                if (tg?.initData) {
+                    try {
+                        const params = new URLSearchParams(tg.initData);
+                        const userStr = params.get('user');
+                        if (userStr) {
+                            diagnostics.userIdMethods.push('✓ initData parsed');
+                        } else {
+                            diagnostics.userIdMethods.push('✗ initData parsed');
+                        }
+                    } catch (e) {
+                        diagnostics.userIdMethods.push('✗ initData parsed (error)');
+                    }
+                } else {
+                    diagnostics.userIdMethods.push('✗ initData not available');
+                }
+
+                const savedUserId = localStorage.getItem('telegram_user_id');
+                if (savedUserId) {
+                    diagnostics.userIdMethods.push('✓ localStorage');
+                } else {
+                    diagnostics.userIdMethods.push('✗ localStorage');
+                }
+
+            } catch (e) {
+                diagnostics.errors.push('Ошибка сбора диагностики: ' + e.message);
+            }
+        }
+
+        function toggleDebug() {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.classList.toggle('show');
+            if (debugInfo.classList.contains('show')) {
+                updateDebugDisplay();
+            }
+        }
+
+        function updateDebugDisplay() {
+            collectDiagnostics();
+            
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <div class="debug-section">
+                    <div class="debug-title">🔧 TELEGRAM WEB APP</div>
+                    SDK загружен: <span class="${diagnostics.sdkLoaded ? 'debug-success' : 'debug-error'}">${diagnostics.sdkLoaded ? 'ДА' : 'НЕТ'}</span><br>
+                    Версия: ${diagnostics.telegramVersion}<br>
+                    Платформа: ${diagnostics.platform}<br>
+                    InitData доступен: <span class="${diagnostics.initDataAvailable ? 'debug-success' : 'debug-error'}">${diagnostics.initDataAvailable ? 'ДА' : 'НЕТ'}</span>
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">👤 USER ID МЕТОДЫ</div>
+                    ${diagnostics.userIdMethods.map(m => {
+                        const isSuccess = m.startsWith('✓');
+                        return `<div class="${isSuccess ? 'debug-success' : 'debug-error'}">${m}</div>`;
+                    }).join('')}<br>
+                    <b>Результат:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
+                    Источник: ${userIdSource}
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">📊 ЗАГРУЗКА ИЗОБРАЖЕНИЙ</div>
+                    Всего: ${loadStats.totalImages}<br>
+                    <span class="debug-success">Загружено: ${loadStats.loadedImages}</span><br>
+                    <span class="debug-error">Ошибок: ${loadStats.failedImages}</span><br>
+                    Retry: ${loadStats.retriedImages}<br>
+                    Кэш: ${imageCache.size}<br>
+                    Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">🌐 СЕТЬ</div>
+                    Navigator.onLine: ${navigator.onLine ? '✓' : '✗'}<br>
+                    User Agent: ${navigator.userAgent.substring(0, 80)}...
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">📱 TELEGRAM DATA</div>
+                    initData: ${tg?.initData ? tg.initData.substring(0, 100) + '...' : 'пусто'}<br>
+                    initDataUnsafe: ${JSON.stringify(tg?.initDataUnsafe || {}, null, 2)}
+                </div>
+
+                ${diagnostics.errors.length > 0 ? `
+                <div class="debug-section">
+                    <div class="debug-title debug-error">⚠️ ОШИБКИ</div>
+                    ${diagnostics.errors.map(e => `<div class="debug-error">${e}</div>`).join('')}
+                </div>
+                ` : ''}
+
+                <div class="debug-section">
+                    <div class="debug-title">💡 РЕКОМЕНДАЦИИ</div>
+                    ${!diagnostics.sdkLoaded ? '<div class="debug-error">• Telegram SDK не загружен - обновите Telegram</div>' : ''}
+                    ${!diagnostics.initDataAvailable ? '<div class="debug-error">• InitData недоступен - переоткройте Mini App</div>' : ''}
+                    ${!currentUserId ? '<div class="debug-error">• User ID не найден - попробуйте /start в боте</div>' : ''}
+                    ${diagnostics.sdkLoaded && diagnostics.initDataAvailable && currentUserId ? '<div class="debug-success">✓ Всё работает корректно!</div>' : ''}
+                </div>
+            `;
+        }
+        
+        // ========== СТАТИСТИКА ЗАГРУЗКИ ==========
         
         const loadStats = {
             totalImages: 0,
@@ -522,32 +757,10 @@
             }, duration);
         }
 
-        function updateDebugInfo() {
-            const debugInfo = document.getElementById('debugInfo');
-            const elapsed = ((Date.now() - loadStats.startTime) / 1000).toFixed(1);
-            debugInfo.innerHTML = `
-                <b>📊 СТАТИСТИКА ЗАГРУЗКИ</b><br>
-                Всего изображений: ${loadStats.totalImages}<br>
-                ✅ Загружено: ${loadStats.loadedImages}<br>
-                ❌ Ошибок: ${loadStats.failedImages}<br>
-                🔄 Повторных попыток: ${loadStats.retriedImages}<br>
-                ⏱️ Время: ${elapsed}s<br>
-                📶 User Agent: ${navigator.userAgent.substring(0, 50)}...<br>
-                🌐 Online: ${navigator.onLine ? 'ДА' : 'НЕТ'}<br>
-                💾 Images в кэше: ${imageCache.size}<br>
-                <br><b>USER ID</b><br>
-                ${currentUserId || 'NOT FOUND'}<br>
-                Source: ${userIdSource}
-            `;
-        }
-
-        // Проверка соединения
         function checkConnection() {
             return new Promise((resolve) => {
                 const img = new Image();
-                const timeout = setTimeout(() => {
-                    resolve(false);
-                }, 5000);
+                const timeout = setTimeout(() => resolve(false), 5000);
                 
                 img.onload = () => {
                     clearTimeout(timeout);
@@ -559,16 +772,15 @@
                     resolve(false);
                 };
                 
-                // Проверяем доступность через маленькую картинку
                 img.src = 'https://telegram.org/img/t_logo.png?' + Date.now();
             });
         }
 
-        // ========== УМНАЯ ЗАГРУЗКА С RETRY ==========
+        // ========== ЗАГРУЗКА С RETRY ==========
         
         const imageCache = new Map();
         const MAX_RETRIES = 3;
-        const RETRY_DELAYS = [1000, 2000, 4000]; // Экспоненциальная задержка
+        const RETRY_DELAYS = [1000, 2000, 4000];
 
         function loadImageWithRetry(img, attempt = 0) {
             const src = img.dataset.src;
@@ -578,25 +790,22 @@
             const loadingIndicator = container.querySelector('.loading-indicator');
             const retryInfo = loadingIndicator?.querySelector('.retry-info');
 
-            // Проверяем кэш
             if (imageCache.has(src)) {
                 img.src = src;
                 img.classList.add('loaded');
                 loadStats.loadedImages++;
-                updateDebugInfo();
                 return;
             }
 
-            // Показываем номер попытки
             if (retryInfo && attempt > 0) {
                 retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}`;
             }
 
             const tempImg = new Image();
             const loadTimeout = setTimeout(() => {
-                tempImg.src = ''; // Отменяем загрузку
+                tempImg.src = '';
                 handleLoadError();
-            }, 15000); // 15 секунд таймаут
+            }, 15000);
 
             tempImg.onload = () => {
                 clearTimeout(loadTimeout);
@@ -604,13 +813,11 @@
                 img.classList.add('loaded');
                 imageCache.set(src, true);
                 
-                // Убираем индикатор загрузки
                 if (loadingIndicator) {
                     setTimeout(() => loadingIndicator.remove(), 400);
                 }
 
                 loadStats.loadedImages++;
-                updateDebugInfo();
 
                 if (loadStats.loadedImages === 1) {
                     showConnectionStatus('✓ Загрузка работает', 1500);
@@ -623,18 +830,14 @@
                 clearTimeout(loadTimeout);
                 
                 if (attempt < MAX_RETRIES) {
-                    // Повторная попытка
                     loadStats.retriedImages++;
-                    updateDebugInfo();
                     
                     const delay = RETRY_DELAYS[attempt] || 4000;
                     setTimeout(() => {
                         loadImageWithRetry(img, attempt + 1);
                     }, delay);
                 } else {
-                    // Все попытки исчерпаны
                     loadStats.failedImages++;
-                    updateDebugInfo();
                     showErrorPlaceholder(container, src);
                     
                     if (loadStats.failedImages >= 3) {
@@ -667,7 +870,6 @@
             const errorPlaceholder = container.querySelector('.error-placeholder');
             if (errorPlaceholder) errorPlaceholder.remove();
 
-            // Создаем новый индикатор загрузки
             const loadingIndicator = document.createElement('div');
             loadingIndicator.className = 'loading-indicator';
             loadingIndicator.innerHTML = `
@@ -681,7 +883,6 @@
             loadImageWithRetry(img, 0);
         };
 
-        // Intersection Observer
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -702,73 +903,98 @@
             });
         }
         
-        // ========== USER ID ==========
+        // ========== УНИВЕРСАЛЬНОЕ ПОЛУЧЕНИЕ USER ID ==========
         
         let userIdSource = 'unknown';
         
         function getUserId() {
             let userId = null;
             
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlUserId = urlParams.get('user_id');
-            if (urlUserId) {
-                userId = urlUserId;
-                userIdSource = 'URL';
+            // СПОСОБ 1: URL параметр
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlUserId = urlParams.get('user_id');
+                if (urlUserId) {
+                    userId = urlUserId;
+                    userIdSource = 'URL parameter';
+                    console.log('✓ User ID из URL:', userId);
+                }
+            } catch (e) {
+                console.error('✗ Ошибка чтения URL:', e);
             }
             
-            if (!userId && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                userId = tg.initDataUnsafe.user.id;
-                userIdSource = 'initDataUnsafe';
-            }
-            
-            if (!userId && tg.initData) {
+            // СПОСОБ 2: initDataUnsafe (основной для новых версий)
+            if (!userId) {
                 try {
-                    const params = new URLSearchParams(tg.initData);
-                    const userStr = params.get('user');
-                    if (userStr) {
-                        const user = JSON.parse(decodeURIComponent(userStr));
-                        if (user && user.id) {
-                            userId = user.id;
-                            userIdSource = 'initData parsed';
+                    if (tg?.initDataUnsafe?.user?.id) {
+                        userId = tg.initDataUnsafe.user.id;
+                        userIdSource = 'initDataUnsafe.user.id';
+                        console.log('✓ User ID из initDataUnsafe:', userId);
+                    }
+                } catch (e) {
+                    console.error('✗ Ошибка чтения initDataUnsafe:', e);
+                }
+            }
+            
+            // СПОСОБ 3: Парсинг initData (для старых версий)
+            if (!userId) {
+                try {
+                    if (tg?.initData) {
+                        const params = new URLSearchParams(tg.initData);
+                        const userStr = params.get('user');
+                        if (userStr) {
+                            const user = JSON.parse(decodeURIComponent(userStr));
+                            if (user?.id) {
+                                userId = user.id;
+                                userIdSource = 'initData parsed';
+                                console.log('✓ User ID из initData (parsed):', userId);
+                            }
                         }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error('✗ Ошибка парсинга initData:', e);
+                }
             }
             
+            // СПОСОБ 4: localStorage (фолбек)
             if (!userId) {
                 try {
                     const savedUserId = localStorage.getItem('telegram_user_id');
                     if (savedUserId) {
                         userId = savedUserId;
-                        userIdSource = 'localStorage';
+                        userIdSource = 'localStorage (cached)';
+                        console.log('✓ User ID из localStorage:', userId);
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error('✗ Ошибка чтения localStorage:', e);
+                }
             }
             
+            // СПОСОБ 5: Запрос у пользователя (крайний случай)
+            if (!userId) {
+                console.warn('⚠️ User ID не найден автоматически');
+                userIdSource = 'not found';
+                // Можно добавить ручной ввод, но это не рекомендуется
+            }
+            
+            // Сохраняем в localStorage для следующего раза
             if (userId) {
                 try {
                     localStorage.setItem('telegram_user_id', userId);
-                } catch (e) {}
-            }
-            
-            // Тройной тап для дебага
-            let tapCount = 0;
-            let tapTimer = null;
-            document.body.addEventListener('click', () => {
-                tapCount++;
-                if (tapCount === 3) {
-                    const debugInfo = document.getElementById('debugInfo');
-                    debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
-                    tapCount = 0;
+                    localStorage.setItem('telegram_user_id_source', userIdSource);
+                    localStorage.setItem('telegram_user_id_timestamp', Date.now().toString());
+                } catch (e) {
+                    console.error('✗ Ошибка сохранения в localStorage:', e);
                 }
-                clearTimeout(tapTimer);
-                tapTimer = setTimeout(() => tapCount = 0, 600);
-            });
+            }
             
             return userId;
         }
         
         const currentUserId = getUserId();
+        console.log('=== USER ID RESULT ===');
+        console.log('ID:', currentUserId);
+        console.log('Source:', userIdSource);
         
         // ========== ОСНОВНОЙ КОД ==========
         
@@ -790,7 +1016,6 @@
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
             
-            // Сброс статистики
             loadStats.totalImages = 0;
             loadStats.loadedImages = 0;
             loadStats.failedImages = 0;
@@ -801,7 +1026,7 @@
                 grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
                 setTimeout(() => {
                     if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                        grid.innerHTML = '<div class="empty-message">Галерея временно недоступна<br>Попробуйте позже</div>';
+                        grid.innerHTML = '<div class="empty-message">Галерея временно недоступна<br>Попробуйте позже<br><br><small>Нажмите 🔧 для диагностики</small></div>';
                     }
                 }, 3000);
                 return;
@@ -820,11 +1045,11 @@
                     grid.innerHTML = `
                         <div class="empty-message">
                             ⚠️ Не удалось определить ваш ID<br><br>
-                            <b>Попробуйте:</b>
-                            1. Закрыть галерею<br>
-                            2. Написать боту /start<br>
-                            3. Открыть галерею снова<br><br>
-                            <small>Тройной тап = диагностика</small>
+                            <b>Попробуйте:</b><br>
+                            1. Обновите Telegram до последней версии<br>
+                            2. Закройте и откройте Mini App<br>
+                            3. Напишите боту /start<br><br>
+                            <small>Нажмите 🔧 для подробной диагностики</small>
                         </div>`;
                     return;
                 }
@@ -906,7 +1131,6 @@
             images.forEach(img => imageObserver.observe(img));
 
             setTimeout(() => preloadPriorityImages(3), 100);
-            updateDebugInfo();
         }
 
         function switchTab(tabName) {
@@ -914,7 +1138,7 @@
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
             document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
             selectedStyleId = null;
-            tg.MainButton.hide();
+            if (tg?.MainButton) tg.MainButton.hide();
             renderGrid();
         }
 
@@ -927,38 +1151,54 @@
             const newCard = document.getElementById(id);
             if (newCard) {
                 newCard.classList.add('selected');
-                if (tg.HapticFeedback) {
-                    tg.HapticFeedback.impactOccurred('medium');
+                if (tg?.HapticFeedback) {
+                    try {
+                        tg.HapticFeedback.impactOccurred('medium');
+                    } catch (e) {}
                 }
             }
-            tg.MainButton.show();
+            if (tg?.MainButton) tg.MainButton.show();
         }
 
         function deleteStyle(event, id) {
             event.stopPropagation();
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.notificationOccurred('warning');
+            if (tg?.HapticFeedback) {
+                try {
+                    tg.HapticFeedback.notificationOccurred('warning');
+                } catch (e) {}
             }
-            tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
-                if (confirmed) {
-                    const data = { action: 'delete_style', style_id: id };
-                    tg.sendData(JSON.stringify(data));
-                    if (tg.HapticFeedback) {
-                        tg.HapticFeedback.notificationOccurred('success');
+            if (tg?.showConfirm) {
+                tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
+                    if (confirmed) {
+                        const data = { action: 'delete_style', style_id: id };
+                        if (tg?.sendData) {
+                            tg.sendData(JSON.stringify(data));
+                        }
+                        if (tg?.HapticFeedback) {
+                            try {
+                                tg.HapticFeedback.notificationOccurred('success');
+                            } catch (e) {}
+                        }
                     }
+                });
+            }
+        }
+
+        if (tg?.MainButton) {
+            tg.MainButton.onClick(() => {
+                const data = { action: 'use_gallery_style', style_id: selectedStyleId };
+                if (tg?.sendData) {
+                    tg.sendData(JSON.stringify(data));
+                }
+                if (tg?.HapticFeedback) {
+                    try {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    } catch (e) {}
                 }
             });
         }
 
-        tg.MainButton.onClick(() => {
-            const data = { action: 'use_gallery_style', style_id: selectedStyleId };
-            tg.sendData(JSON.stringify(data));
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.notificationOccurred('success');
-            }
-        });
-
-        // Проверяем соединение при запуске
+        // Инициализация
         checkConnection().then(isOnline => {
             if (isOnline) {
                 showConnectionStatus('🌐 Соединение установлено', 2000);
@@ -968,7 +1208,6 @@
             renderGrid();
         });
 
-        // Отслеживаем изменения онлайн/офлайн
         window.addEventListener('online', () => {
             showConnectionStatus('✓ Интернет восстановлен', 2000);
         });
@@ -976,6 +1215,14 @@
         window.addEventListener('offline', () => {
             showConnectionStatus('⚠️ Нет интернета', 3000);
         });
+
+        // Автоматическая диагностика при проблемах
+        setTimeout(() => {
+            if (!currentUserId || loadStats.failedImages > 3) {
+                console.warn('⚠️ Обнаружены проблемы, включаем диагностику');
+                collectDiagnostics();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
