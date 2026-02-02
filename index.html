@@ -3,70 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ IMAGEBAN: Скрываем Referer, чтобы хостинг не блокировал хотлинк -->
-    <meta name="referrer" content="no-referrer">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
     <title>Галерея</title>
-    <script>
-        // Cache busting - добавляем версию
-        const APP_VERSION = '1.0.6';
-        const storedVersion = localStorage.getItem('app_version');
-        
-        if (storedVersion !== APP_VERSION) {
-            console.log('🔄 Обновление версии:', storedVersion, '→', APP_VERSION);
-            try {
-                const keysToRemove = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith('img_cache_')) {
-                        keysToRemove.push(key);
-                    }
-                }
-                keysToRemove.forEach(key => localStorage.removeItem(key));
-                localStorage.setItem('app_version', APP_VERSION);
-                console.log('✓ Кэш очищен');
-            } catch (e) {
-                console.error('Ошибка очистки кэша:', e);
-            }
-        }
-        
-        window.TelegramWebAppReady = false;
-        setTimeout(() => {
-            if (!window.TelegramWebAppReady) {
-                console.warn('Telegram WebApp SDK не загрузился');
-                window.Telegram = window.Telegram || {
-                    WebApp: {
-                        ready: () => {},
-                        expand: () => {},
-                        MainButton: {
-                            text: '',
-                            show: () => {},
-                            hide: () => {},
-                            onClick: () => {}
-                        },
-                        HapticFeedback: null,
-                        initData: '',
-                        initDataUnsafe: {},
-                        showConfirm: (msg, callback) => {
-                            if (confirm(msg)) callback(true);
-                            else callback(false);
-                        },
-                        sendData: (data) => {
-                            console.log('SendData:', data);
-                        }
-                    }
-                };
-            }
-        }, 2000);
-    </script>
-    <script src="https://telegram.org/js/telegram-web-app.js" onerror="console.error('Failed to load Telegram SDK')"></script>
-    <script>
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.TelegramWebAppReady = true;
-        }
-    </script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
             --bg-color: var(--tg-theme-bg-color, #f4f4f9);
@@ -75,10 +13,6 @@
             --button-color: var(--tg-theme-button-color, #0088cc);
             --card-bg: var(--tg-theme-secondary-bg-color, #fff);
             --danger-color: #ff4d4d;
-        }
-
-        * {
-            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -91,6 +25,7 @@
             min-height: 100vh;
         }
 
+        /* ТАБЫ */
         .tabs {
             position: sticky;
             top: 0;
@@ -136,6 +71,7 @@
             border-radius: 2px;
         }
 
+        /* СЕТКА - портретные карточки */
         .gallery-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -164,6 +100,7 @@
             box-shadow: 0 4px 20px rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.3);
         }
 
+        /* ОПТИМИЗАЦИЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ */
         .image-container {
             position: relative;
             width: 100%;
@@ -172,6 +109,7 @@
             background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
         }
 
+        /* Blur placeholder пока грузится */
         .image-placeholder {
             position: absolute;
             top: 0;
@@ -186,41 +124,6 @@
         @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
-        }
-
-        .loading-indicator {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .loading-spinner {
-            width: 30px;
-            height: 30px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top-color: var(--button-color);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .retry-info {
-            font-size: 9px;
-            color: var(--hint-color);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 3px 8px;
-            border-radius: 12px;
-            max-width: 140px;
-            text-align: center;
         }
 
         .style-image {
@@ -242,6 +145,7 @@
             transform: scale(1.05);
         }
 
+        /* Градиент поверх изображения */
         .image-overlay {
             position: absolute;
             top: 0;
@@ -251,52 +155,6 @@
             background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%);
             pointer-events: none;
             z-index: 1;
-        }
-
-        .error-placeholder {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            z-index: 2;
-        }
-
-        .error-placeholder svg {
-            width: 40px;
-            height: 40px;
-            fill: #f44336;
-            opacity: 0.5;
-        }
-
-        .error-text {
-            font-size: 10px;
-            color: #c62828;
-            text-align: center;
-            padding: 0 10px;
-            line-height: 1.3;
-        }
-
-        .retry-btn {
-            background: var(--button-color);
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 16px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 4px;
-        }
-
-        .retry-btn:active {
-            transform: scale(0.95);
         }
 
         .style-info {
@@ -337,6 +195,7 @@
             gap: 3px;
         }
 
+        /* ХИТ и РЕЙТИНГ */
         .hit-badge {
             position: absolute;
             top: 10px;
@@ -367,6 +226,7 @@
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
 
+        /* КНОПКА УДАЛЕНИЯ */
         .delete-btn {
             position: absolute;
             top: 10px;
@@ -386,14 +246,21 @@
 
         .delete-btn:active {
             transform: scale(0.9);
+            background: rgba(255, 255, 255, 1);
         }
 
         .delete-btn svg { 
             width: 16px; 
             height: 16px; 
             fill: var(--danger-color);
+            transition: fill 0.2s ease;
         }
 
+        .delete-btn:hover svg {
+            fill: #ff0000;
+        }
+
+        /* Индикатор стиля */
         .style-tag {
             position: absolute;
             bottom: 70px;
@@ -431,99 +298,24 @@
             display: block;
             margin: 16px 0 8px;
         }
-
-        .connection-status {
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            z-index: 1001;
-            display: none;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        .connection-status.show {
-            display: flex;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #4caf50;
-            animation: blink 1.5s infinite;
-        }
-
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-
+        
         .debug-info {
             position: fixed;
-            bottom: 0;
+            bottom: 80px;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.95);
-            color: #00ff00;
-            padding: 16px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px;
             font-size: 10px;
             display: none;
             z-index: 1000;
-            font-family: 'Courier New', monospace;
-            max-height: 50vh;
+            font-family: monospace;
+            max-height: 200px;
             overflow-y: auto;
-            border-top: 2px solid #00ff00;
         }
 
-        .debug-info.show {
-            display: block;
-        }
-
-        .debug-section {
-            margin: 8px 0;
-            padding: 8px;
-            border: 1px solid #00ff00;
-            border-radius: 4px;
-        }
-
-        .debug-title {
-            color: #ffff00;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .debug-error {
-            color: #ff4444;
-        }
-
-        .debug-success {
-            color: #44ff44;
-        }
-
-        .debug-warning {
-            color: #ffaa00;
-        }
-
+        /* Loader */
         .loader {
             grid-column: span 2;
             display: flex;
@@ -540,6 +332,17 @@
             animation: spin 1s linear infinite;
         }
 
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Улучшенная прокрутка */
+        ::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+
+        /* Fade-in анимация для карточек */
         .style-card {
             animation: fadeInUp 0.4s ease forwards;
             opacity: 0;
@@ -555,62 +358,9 @@
                 transform: translateY(0);
             }
         }
-
-        ::-webkit-scrollbar {
-            width: 0;
-            height: 0;
-        }
-
-        .debug-toggle {
-            position: fixed;
-            bottom: 90px;
-            right: 16px;
-            width: 48px;
-            height: 48px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-            cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        .debug-toggle:active {
-            transform: scale(0.9);
-        }
-
-        .clear-cache-btn {
-            position: fixed;
-            bottom: 150px;
-            right: 16px;
-            width: 48px;
-            height: 48px;
-            background: rgba(255, 87, 34, 0.9);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-            cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            color: white;
-        }
-
-        .clear-cache-btn:active {
-            transform: scale(0.9);
-        }
     </style>
 </head>
 <body>
-
-    <div class="connection-status" id="connectionStatus">
-        <div class="status-dot"></div>
-        <span id="statusText">Загрузка...</span>
-    </div>
 
     <div class="tabs">
         <div class="tab" onclick="switchTab('admin')">👑 Редакция</div>
@@ -622,386 +372,345 @@
     <div class="gallery-grid" id="grid">
         <div class="loader"><div class="spinner"></div></div>
     </div>
-
-    <div class="clear-cache-btn" onclick="clearAllCache()" title="Очистить кэш">🗑️</div>
-    <div class="debug-toggle" onclick="toggleDebug()">🔧</div>
+    
     <div class="debug-info" id="debugInfo"></div>
 
-    <!-- styles.js должен содержать массив GALLERY_STYLES -->
     <script src="styles.js"></script>
 
     <script>
-        // ========== TELEGRAM INIT ==========
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
         
-        let tg;
-        try {
-            tg = window.Telegram.WebApp;
-            tg.ready();
-            tg.expand();
-            tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
-            console.log('✓ Telegram WebApp v' + (tg.version || 'unknown'));
-        } catch (e) {
-            console.error('✗ Ошибка инициализации:', e);
-            tg = window.Telegram?.WebApp || {
-                ready: () => {},
-                expand: () => {},
-                MainButton: { text: '', show: () => {}, hide: () => {}, onClick: () => {} },
-                showConfirm: (msg, cb) => cb(confirm(msg)),
-                sendData: (data) => console.log('SendData:', data)
-            };
-        }
+        // ========== ОПТИМИЗАЦИЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ ==========
         
-        // ========== ДИАГНОСТИКА ==========
-        
-        const diagnostics = {
-            appVersion: APP_VERSION,
-            telegramVersion: null,
-            platform: null,
-            userAgent: navigator.userAgent,
-            webViewEngine: null,
-            userIdMethods: [],
-            sdkLoaded: false,
-            initDataAvailable: false,
-            errors: [],
-            loadErrors: []
-        };
-
-        function detectWebView() {
-            const ua = navigator.userAgent;
-            if (ua.includes('Chrome/')) {
-                const match = ua.match(/Chrome\/(\d+)/);
-                return match ? `Chromium ${match[1]}` : 'Chromium';
-            }
-            if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
-                return 'WebKit (Safari)';
-            }
-            return 'Unknown';
-        }
-
-        diagnostics.webViewEngine = detectWebView();
-
-        const loadStats = {
-            totalImages: 0,
-            loadedImages: 0,
-            failedImages: 0,
-            retriedImages: 0,
-            cacheBusted: 0,
-            startTime: Date.now()
-        };
-
-        function showConnectionStatus(message, duration = 2000) {
-            const status = document.getElementById('connectionStatus');
-            const text = document.getElementById('statusText');
-            text.textContent = message;
-            status.classList.add('show');
-            
-            setTimeout(() => {
-                status.classList.remove('show');
-            }, duration);
-        }
-
-        function toggleDebug() {
-            const debugInfo = document.getElementById('debugInfo');
-            debugInfo.classList.toggle('show');
-            if (debugInfo.classList.contains('show')) {
-                updateDebugDisplay();
-            }
-        }
-
-        function clearAllCache() {
-            if (confirm('🗑️ Очистить весь кэш и перезагрузить?\n\nЭто поможет если изображения не грузятся.')) {
-                try {
-                    const keysToRemove = [];
-                    for (let i = 0; i < localStorage.length; i++) {
-                        const key = localStorage.key(i);
-                        if (key && (key.startsWith('img_cache_') || key.startsWith('telegram_'))) {
-                            keysToRemove.push(key);
-                        }
-                    }
-                    keysToRemove.forEach(key => localStorage.removeItem(key));
-                    imageCache.clear();
-                    showConnectionStatus('✓ Кэш очищен!', 2000);
-                    setTimeout(() => window.location.reload(true), 500);
-                } catch (e) {
-                    alert('Ошибка: ' + e.message);
-                }
-            }
-        }
-
-        function collectDiagnostics() {
-            try {
-                diagnostics.sdkLoaded = !!window.Telegram?.WebApp;
-                diagnostics.telegramVersion = tg?.version || 'unknown';
-                diagnostics.platform = tg?.platform || navigator.platform;
-                diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
-                diagnostics.userIdMethods = [];
-                
-                if (tg?.initDataUnsafe?.user?.id) diagnostics.userIdMethods.push('✓ initDataUnsafe');
-                else diagnostics.userIdMethods.push('✗ initDataUnsafe');
-
-                const urlUserId = new URLSearchParams(window.location.search).get('user_id');
-                if (urlUserId) diagnostics.userIdMethods.push('✓ URL param');
-                else diagnostics.userIdMethods.push('✗ URL param');
-
-            } catch (e) {
-                diagnostics.errors.push('Ошибка диагностики: ' + e.message);
-            }
-        }
-
-        function updateDebugDisplay() {
-            collectDiagnostics();
-            const debugInfo = document.getElementById('debugInfo');
-            const loadSuccessRate = loadStats.totalImages > 0 ? ((loadStats.loadedImages / loadStats.totalImages) * 100).toFixed(0) : 0;
-
-            debugInfo.innerHTML = `
-                <div class="debug-section">
-                    <div class="debug-title">📱 УСТРОЙСТВО</div>
-                    App: ${diagnostics.appVersion} | TG: ${diagnostics.telegramVersion}<br>
-                    Engine: <span class="debug-warning">${diagnostics.webViewEngine}</span>
-                </div>
-                <div class="debug-section">
-                    <div class="debug-title">👤 USER: ${currentUserId || 'NULL'}</div>
-                    Методы: ${diagnostics.userIdMethods.join(', ')}
-                </div>
-                <div class="debug-section">
-                    <div class="debug-title">🖼️ СТАТИСТИКА ЗАГРУЗКИ</div>
-                    Успешно: <span class="debug-success">${loadStats.loadedImages}/${loadStats.totalImages}</span> (${loadSuccessRate}%)<br>
-                    Ошибок: <span class="debug-error">${loadStats.failedImages}</span> | Retry: ${loadStats.retriedImages}
-                </div>
-                <div class="debug-section">
-                    <button class="retry-btn" onclick="clearAllCache()" style="width:100%">🗑️ Очистить кэш</button>
-                </div>
-            `;
-        }
-        
-        // ========== УМНАЯ ЗАГРУЗКА БЕЗ REFERER И CORS ==========
-        
+        // Предзагрузка изображений с приоритетом
         const imageCache = new Map();
-        const MAX_RETRIES = 2;
-
-        function addCacheBuster(url) {
-            const separator = url.includes('?') ? '&' : '?';
-            return `${url}${separator}v=${APP_VERSION}_${Math.random().toString(36).substring(7)}`;
-        }
-
-        function loadImageWithRetry(img, attempt = 0, forceCacheBust = false) {
-            let originalSrc = img.dataset.src;
-            if (!originalSrc) return;
-
-            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Force HTTPS для ImageBan
-            if (originalSrc.startsWith('http://')) {
-                originalSrc = originalSrc.replace('http://', 'https://');
-            }
-
-            const container = img.closest('.image-container');
-            const loadingIndicator = container?.querySelector('.loading-indicator');
-
-            // 1. Проверка memory-кэша
-            if (!forceCacheBust && imageCache.has(originalSrc)) {
-                img.src = imageCache.get(originalSrc);
-                img.classList.add('loaded');
-                loadStats.loadedImages++;
-                if (loadingIndicator) loadingIndicator.remove();
-                return;
-            }
-
-            // 2. Настройка URL
-            let srcToLoad = originalSrc;
-            if (forceCacheBust || attempt > 0 || originalSrc.includes('imageban.ru')) {
-                srcToLoad = addCacheBuster(originalSrc);
-                loadStats.cacheBusted++;
-            }
-
-            const tempImg = new Image();
-            
-            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 
-            // НЕ используем crossOrigin = 'anonymous', так как ImageBan не всегда шлет CORS заголовки.
-            // Без него картинка просто отобразится в <img>, что нам и нужно.
-            
-            const timeout = 10000; 
-            const loadTimeout = setTimeout(() => {
-                tempImg.src = '';
-                handleLoadError();
-            }, timeout);
-
-            tempImg.onload = () => {
-                clearTimeout(loadTimeout);
-                img.src = srcToLoad;
-                img.classList.add('loaded');
-                imageCache.set(originalSrc, srcToLoad);
-                if (loadingIndicator) loadingIndicator.remove();
-                loadStats.loadedImages++;
-            };
-
-            tempImg.onerror = handleLoadError;
-
-            function handleLoadError() {
-                clearTimeout(loadTimeout);
-                if (attempt < MAX_RETRIES) {
-                    loadStats.retriedImages++;
-                    setTimeout(() => loadImageWithRetry(img, attempt + 1, true), 1000);
-                } else {
-                    loadStats.failedImages++;
-                    showErrorPlaceholder(container, originalSrc);
-                }
-            }
-
-            tempImg.src = srcToLoad;
-        }
-
-        function showErrorPlaceholder(container, src) {
-            const loadingIndicator = container.querySelector('.loading-indicator');
-            if (loadingIndicator) loadingIndicator.remove();
-
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-placeholder';
-            errorDiv.innerHTML = `
-                <svg viewBox="0 0 24 24"><path d="M21.9,21.9l-8.49-8.49l0,0L3.59,3.59l0,0L2.1,2.1L0.69,3.51L3,5.83V19c0,1.1,0.9,2,2,2h13.17l2.31,2.31L21.9,21.9z M5,18 l3.5-4.5l2.5,3.01L12.17,15l3,3H5z M21,18.17L5.83,3H19c1.1,0,2,0.9,2,2V18.17z"/></svg>
-                <div class="error-text">Ошибка загрузки<br><small>ImageBan заблокировал запрос</small></div>
-                <button class="retry-btn" onclick="retryImage('${src}', this)">🔄</button>
-            `;
-            container.appendChild(errorDiv);
-        }
-
-        window.retryImage = function(src, button) {
-            const container = button.closest('.image-container');
-            container.querySelector('.error-placeholder')?.remove();
-            
-            const loadingIndicator = document.createElement('div');
-            loadingIndicator.className = 'loading-indicator';
-            loadingIndicator.innerHTML = `<div class="loading-spinner"></div>`;
-            container.appendChild(loadingIndicator);
-
-            const img = container.querySelector('.style-image');
-            img.dataset.src = src;
-            loadImageWithRetry(img, 0, true);
-        };
-
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    loadImageWithRetry(entry.target, 0, false);
-                    imageObserver.unobserve(entry.target);
+                    const img = entry.target;
+                    loadImage(img);
+                    imageObserver.unobserve(img);
                 }
             });
-        }, { rootMargin: '200px' });
+        }, {
+            rootMargin: '50px' // Начинаем загрузку за 50px до появления
+        });
 
-        // ========== USER ID ==========
+        function loadImage(img) {
+            const src = img.dataset.src;
+            if (!src) return;
+
+            // Проверяем кэш
+            if (imageCache.has(src)) {
+                img.src = src;
+                img.classList.add('loaded');
+                return;
+            }
+
+            // Создаем новый объект Image для предзагрузки
+            const tempImg = new Image();
+            
+            tempImg.onload = () => {
+                img.src = src;
+                img.classList.add('loaded');
+                imageCache.set(src, true);
+                
+                // Удаляем placeholder
+                const placeholder = img.parentElement.querySelector('.image-placeholder');
+                if (placeholder) {
+                    setTimeout(() => placeholder.remove(), 400);
+                }
+            };
+
+            tempImg.onerror = () => {
+                console.error('Failed to load image:', src);
+                // Показываем заглушку при ошибке
+                img.parentElement.style.background = 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
+                const placeholder = img.parentElement.querySelector('.image-placeholder');
+                if (placeholder) placeholder.remove();
+            };
+
+            tempImg.src = src;
+        }
+
+        // Принудительная предзагрузка первых N изображений
+        function preloadPriorityImages(count = 4) {
+            const images = document.querySelectorAll('.style-image[data-src]');
+            Array.from(images).slice(0, count).forEach(img => {
+                loadImage(img);
+                imageObserver.unobserve(img);
+            });
+        }
+        
+        // ========== УНИВЕРСАЛЬНОЕ ПОЛУЧЕНИЕ USER ID ==========
         
         function getUserId() {
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const uId = urlParams.get('user_id') || tg?.initDataUnsafe?.user?.id;
-                if (uId) {
-                    localStorage.setItem('telegram_user_id', uId);
-                    return uId;
+            let userId = null;
+            const debugData = {
+                source: 'unknown',
+                attempts: []
+            };
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlUserId = urlParams.get('user_id');
+            debugData.attempts.push({method: 'URL params', value: urlUserId});
+            if (urlUserId) {
+                userId = urlUserId;
+                debugData.source = 'URL';
+            }
+            
+            if (!userId && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                userId = tg.initDataUnsafe.user.id;
+                debugData.source = 'initDataUnsafe';
+                debugData.attempts.push({method: 'initDataUnsafe', value: userId});
+            }
+            
+            if (!userId && tg.initData) {
+                try {
+                    const params = new URLSearchParams(tg.initData);
+                    const userStr = params.get('user');
+                    if (userStr) {
+                        const user = JSON.parse(decodeURIComponent(userStr));
+                        if (user && user.id) {
+                            userId = user.id;
+                            debugData.source = 'initData parsed';
+                            debugData.attempts.push({method: 'initData parsed', value: userId});
+                        }
+                    }
+                } catch (e) {
+                    debugData.attempts.push({method: 'initData parsed', error: e.message});
                 }
-                return localStorage.getItem('telegram_user_id');
-            } catch (e) { return null; }
+            }
+            
+            if (!userId) {
+                try {
+                    const savedUserId = localStorage.getItem('telegram_user_id');
+                    if (savedUserId) {
+                        userId = savedUserId;
+                        debugData.source = 'localStorage';
+                        debugData.attempts.push({method: 'localStorage', value: userId});
+                    }
+                } catch (e) {
+                    debugData.attempts.push({method: 'localStorage', error: e.message});
+                }
+            }
+            
+            if (userId) {
+                try {
+                    localStorage.setItem('telegram_user_id', userId);
+                } catch (e) {}
+            }
+            
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <b>DEBUG INFO</b><br>
+                User ID: ${userId || 'NOT FOUND'}<br>
+                Source: ${debugData.source}<br>
+                Images cached: ${imageCache.size}<br>
+                <pre>${JSON.stringify(debugData.attempts, null, 2)}</pre>
+            `;
+            
+            let tapCount = 0;
+            let tapTimer = null;
+            document.body.addEventListener('click', () => {
+                tapCount++;
+                if (tapCount === 3) {
+                    debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+                    tapCount = 0;
+                }
+                clearTimeout(tapTimer);
+                tapTimer = setTimeout(() => tapCount = 0, 600);
+            });
+            
+            console.log('User ID Detection:', debugData);
+            
+            return userId;
         }
         
         const currentUserId = getUserId();
         
-        // ========== ГРИД И ТАБЫ ==========
+        // ========== ОСНОВНОЙ КОД ==========
         
         let currentTab = 'popular';
         let selectedStyleId = null;
 
         function getRatingHTML(uses) {
-            let starsCount = uses > 50 ? 5 : (uses > 20 ? 4 : (uses > 10 ? 3 : (uses > 5 ? 2 : 1)));
-            return `<span class="stars">${'★'.repeat(starsCount)}${'☆'.repeat(5 - starsCount)}</span>`;
+            let starsCount = 1;
+            if (uses > 50) starsCount = 5;
+            else if (uses > 20) starsCount = 4;
+            else if (uses > 10) starsCount = 3;
+            else if (uses > 5) starsCount = 2;
+
+            let stars = '★'.repeat(starsCount) + '☆'.repeat(5 - starsCount);
+            return `<span class="stars">${stars}</span>`;
         }
 
         function renderGrid() {
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
-            
-            loadStats.totalImages = 0;
-            loadStats.loadedImages = 0;
-            loadStats.failedImages = 0;
 
-            if (typeof GALLERY_STYLES === 'undefined') {
-                grid.innerHTML = '<div class="empty-message">Ошибка: Стили не загружены</div>';
+            if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
+                grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+                setTimeout(() => {
+                    if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
+                        grid.innerHTML = '<div class="empty-message">Галерея временно недоступна<br>Попробуйте позже</div>';
+                    }
+                }, 3000);
                 return;
             }
 
             let displayStyles = [...GALLERY_STYLES];
 
-            if (currentTab === 'admin') displayStyles = displayStyles.filter(s => s.is_admin);
-            else if (currentTab === 'mine') displayStyles = displayStyles.filter(s => String(s.creator_id) === String(currentUserId));
-
-            if (displayStyles.length === 0) {
-                grid.innerHTML = '<div class="empty-message">Пусто</div>';
-                return;
+            // ФИЛЬТРАЦИЯ
+            if (currentTab === 'admin') {
+                displayStyles = displayStyles.filter(s => s.is_admin === true);
+                if (displayStyles.length === 0) {
+                    grid.innerHTML = '<div class="empty-message">Коллекция редакции пока пуста<br><small>Скоро здесь появятся лучшие стили!</small></div>';
+                    return;
+                }
+            } else if (currentTab === 'mine') {
+                if (!currentUserId) {
+                    grid.innerHTML = `
+                        <div class="empty-message">
+                            ⚠️ Не удалось определить ваш ID<br><br>
+                            <b>Попробуйте:</b>
+                            1. Закрыть галерею<br>
+                            2. Написать боту /start<br>
+                            3. Открыть галерею снова<br><br>
+                            <small>Тройной тап = отладка</small>
+                        </div>`;
+                    return;
+                }
+                
+                displayStyles = displayStyles.filter(s => {
+                    return String(s.creator_id) === String(currentUserId);
+                });
+                
+                if (displayStyles.length === 0) {
+                    grid.innerHTML = '<div class="empty-message">У вас пока нет своих стилей<br><small>Создайте их в боте через кнопку - Придумать свой стиль!</small></div>';
+                    return;
+                }
             }
 
-            displayStyles.sort((a, b) => b.uses - a.uses);
-            loadStats.totalImages = displayStyles.length;
+            // СОРТИРОВКА
+            if (currentTab === 'popular' || currentTab === 'admin') {
+                displayStyles.sort((a, b) => b.uses - a.uses);
+            } else {
+                displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            }
 
+            // РЕНДЕР с оптимизацией загрузки
             displayStyles.forEach((style, index) => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
+                card.style.animationDelay = `${index * 0.05}s`; // Каскадная анимация
                 card.onclick = () => selectStyle(style.id);
 
-                const isOwner = currentUserId && String(style.creator_id) === String(currentUserId);
-                
-                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавлен referrerpolicy="no-referrer" в тег img
+                let hitBadge = '';
+                if (style.uses > 50) {
+                    hitBadge = '<div class="hit-badge"><span>🔥</span> ХИТ</div>';
+                } else if (style.uses > 20) {
+                    hitBadge = '<div class="hit-badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ ТОП</div>';
+                }
+
+                let deleteBtn = '';
+                if (currentUserId && String(style.creator_id) === String(currentUserId)) {
+                    deleteBtn = `
+                        <div class="delete-btn" onclick="deleteStyle(event, '${style.id}')">
+                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </div>`;
+                }
+
+                let styleType = '🎨 Стиль';
+                if (style.uses > 30) styleType = '🏆 Легенда';
+                else if (style.uses > 15) styleType = '⚡ Популярный';
+                else if (style.is_admin) styleType = '👑 Премиум';
+
                 card.innerHTML = `
-                    ${style.uses > 30 ? '<div class="hit-badge">🔥 ТОП</div>' : ''}
-                    ${isOwner ? `<div class="delete-btn" onclick="deleteStyle(event, '${style.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></div>` : ''}
+                    ${hitBadge}
+                    ${deleteBtn}
                     <div class="image-container">
                         <div class="image-placeholder"></div>
-                        <div class="loading-indicator"><div class="loading-spinner"></div></div>
                         <div class="image-overlay"></div>
-                        <img class="style-image" 
-                             referrerpolicy="no-referrer" 
-                             data-src="${style.img}" 
-                             alt="style">
+                        <img class="style-image" data-src="${style.img}" alt="${style.author}">
                     </div>
+                    <div class="style-tag">${styleType}</div>
                     <div class="style-info">
                         <div class="info-row">
                             <span class="author-name">@${style.author}</span>
                             ${getRatingHTML(style.uses)}
                         </div>
-                        <div class="style-stats">👁️ ${style.uses}</div>
+                        <div class="info-row">
+                            <div class="style-stats">
+                                <span class="stat-item">👁️ ${style.uses}</span>
+                            </div>
+                        </div>
                     </div>
                 `;
                 grid.appendChild(card);
             });
 
-            grid.querySelectorAll('.style-image').forEach(img => imageObserver.observe(img));
+            // Инициализация ленивой загрузки
+            const images = grid.querySelectorAll('.style-image[data-src]');
+            images.forEach(img => imageObserver.observe(img));
+
+            // Предзагружаем первые 4 изображения сразу
+            setTimeout(() => preloadPriorityImages(4), 100);
         }
 
         function switchTab(tabName) {
             currentTab = tabName;
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            document.querySelector(`.tab[onclick*="${tabName}"]`).classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
             selectedStyleId = null;
             tg.MainButton.hide();
             renderGrid();
         }
 
         function selectStyle(id) {
-            if (selectedStyleId) document.getElementById(selectedStyleId)?.classList.remove('selected');
+            if (selectedStyleId) {
+                const old = document.getElementById(selectedStyleId);
+                if (old) old.classList.remove('selected');
+            }
             selectedStyleId = id;
-            document.getElementById(id)?.classList.add('selected');
-            tg.HapticFeedback?.impactOccurred('medium');
+            const newCard = document.getElementById(id);
+            if (newCard) {
+                newCard.classList.add('selected');
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.impactOccurred('medium');
+                }
+            }
             tg.MainButton.show();
         }
 
         function deleteStyle(event, id) {
             event.stopPropagation();
-            tg.showConfirm("Удалить этот стиль?", (ok) => {
-                if (ok) tg.sendData(JSON.stringify({ action: 'delete_style', style_id: id }));
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('warning');
+            }
+            tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
+                if (confirmed) {
+                    const data = { action: 'delete_style', style_id: id };
+                    tg.sendData(JSON.stringify(data));
+                    if (tg.HapticFeedback) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
+                }
             });
         }
 
         tg.MainButton.onClick(() => {
-            tg.sendData(JSON.stringify({ action: 'use_gallery_style', style_id: selectedStyleId }));
+            const data = { action: 'use_gallery_style', style_id: selectedStyleId };
+            tg.sendData(JSON.stringify(data));
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+            }
         });
 
-        // Запуск
+        // Инициализация
         renderGrid();
     </script>
 </body>
