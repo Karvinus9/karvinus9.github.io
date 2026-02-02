@@ -25,6 +25,148 @@
             min-height: 100vh;
         }
 
+        /* ===== СТАТУС ЗАГРУЗКИ ===== */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.1);
+            border-top-color: var(--button-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--hint-color);
+            animation: pulse-text 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .loading-progress {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--button-color);
+            font-weight: 600;
+        }
+
+        /* ===== КАРУСЕЛЬ НОВОСТЕЙ ===== */
+        .news-carousel {
+            position: relative;
+            width: 100%;
+            height: 140px;
+            overflow: hidden;
+            background: var(--card-bg);
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .carousel-container {
+            display: flex;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 100%;
+        }
+
+        .carousel-slide {
+            min-width: 100%;
+            height: 100%;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .carousel-slide.gradient-slide {
+            background: linear-gradient(135deg, var(--button-color) 0%, rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.7) 100%);
+        }
+
+        .carousel-slide.image-slide {
+            padding: 0;
+            background: #000;
+        }
+
+        .carousel-slide.image-slide img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .carousel-content {
+            text-align: center;
+            color: white;
+            z-index: 2;
+            max-width: 90%;
+        }
+
+        .carousel-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .carousel-subtitle {
+            font-size: 13px;
+            opacity: 0.95;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .carousel-dots {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 3;
+        }
+
+        .carousel-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .carousel-dot.active {
+            width: 20px;
+            border-radius: 3px;
+            background: white;
+        }
+
         /* ТАБЫ */
         .tabs {
             position: sticky;
@@ -109,7 +251,6 @@
             background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
         }
 
-        /* Blur placeholder пока грузится */
         .image-placeholder {
             position: absolute;
             top: 0;
@@ -145,7 +286,6 @@
             transform: scale(1.05);
         }
 
-        /* Градиент поверх изображения */
         .image-overlay {
             position: absolute;
             top: 0;
@@ -226,165 +366,271 @@
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
 
-        /* КНОПКА УДАЛЕНИЯ */
+        .style-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            z-index: 5;
+        }
+
         .delete-btn {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 50%;
             width: 32px;
             height: 32px;
+            background: rgba(255, 77, 77, 0.95);
+            backdrop-filter: blur(8px);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            cursor: pointer;
             z-index: 10;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(255, 77, 77, 0.4);
         }
 
         .delete-btn:active {
             transform: scale(0.9);
-            background: rgba(255, 255, 255, 1);
         }
 
-        .delete-btn svg { 
-            width: 16px; 
-            height: 16px; 
-            fill: var(--danger-color);
-            transition: fill 0.2s ease;
+        .delete-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
         }
 
-        .delete-btn:hover svg {
-            fill: #ff0000;
-        }
-
-        /* Индикатор стиля */
-        .style-tag {
-            position: absolute;
-            bottom: 70px;
-            left: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            color: white;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-size: 11px;
-            z-index: 3;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .style-card:hover .style-tag {
-            opacity: 1;
-        }
-
-        .empty-message { 
-            text-align: center; 
-            padding: 60px 20px; 
-            color: var(--hint-color); 
-            grid-column: span 2;
+        .empty-message {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--hint-color);
             font-size: 15px;
             line-height: 1.6;
         }
 
-        .empty-message b {
-            color: var(--text-color);
+        .empty-message small {
             display: block;
-            margin: 16px 0 8px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--hint-color);
+            opacity: 0.7;
         }
-        
-        .debug-info {
-            position: fixed;
-            bottom: 80px;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            padding: 12px;
-            font-size: 10px;
+
+        .loader {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            padding: 80px 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.1);
+            border-top-color: var(--button-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Debug info */
+        #debugInfo {
             display: none;
-            z-index: 1000;
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            color: #0f0;
+            padding: 10px;
+            font-size: 10px;
+            border-radius: 8px;
+            z-index: 10000;
             font-family: monospace;
             max-height: 200px;
             overflow-y: auto;
         }
-
-        /* Loader */
-        .loader {
-            grid-column: span 2;
-            display: flex;
-            justify-content: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.2);
-            border-top-color: var(--button-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Улучшенная прокрутка */
-        ::-webkit-scrollbar {
-            width: 0;
-            height: 0;
-        }
-
-        /* Fade-in анимация для карточек */
-        .style-card {
-            animation: fadeInUp 0.4s ease forwards;
-            opacity: 0;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
     </style>
 </head>
 <body>
+    <!-- СТАТУС ЗАГРУЗКИ -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Загружаем галерею...</div>
+        <div class="loading-progress" id="loadingProgress">0%</div>
+    </div>
 
+    <!-- КАРУСЕЛЬ НОВОСТЕЙ -->
+    <div class="news-carousel" id="newsCarousel">
+        <div class="carousel-container" id="carouselContainer">
+            <!-- Слайды будут добавлены динамически -->
+        </div>
+        <div class="carousel-dots" id="carouselDots"></div>
+    </div>
+
+    <!-- ТАБЫ -->
     <div class="tabs">
+        <div class="tab active" onclick="switchTab('popular')">🔥 Популярные</div>
         <div class="tab" onclick="switchTab('admin')">👑 Редакция</div>
-        <div class="tab active" onclick="switchTab('popular')">🔥 Топ</div>
-        <div class="tab" onclick="switchTab('new')">🆕 Новинки</div>
-        <div class="tab" onclick="switchTab('mine')">👤 Мои</div>
+        <div class="tab" onclick="switchTab('mine')">✨ Мои</div>
     </div>
 
-    <div class="gallery-grid" id="grid">
-        <div class="loader"><div class="spinner"></div></div>
-    </div>
-    
-    <div class="debug-info" id="debugInfo"></div>
+    <!-- ГАЛЕРЕЯ -->
+    <div class="gallery-grid" id="grid"></div>
 
-    <script src="styles.js"></script>
+    <div id="debugInfo"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
-        
-        // ========== ОПТИМИЗАЦИЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ ==========
-        
-        // Предзагрузка изображений с приоритетом
+        tg.MainButton.text = "Использовать стиль";
+        tg.MainButton.color = getComputedStyle(document.documentElement).getPropertyValue('--button-color') || '#0088cc';
+
+        // ========== КОНФИГУРАЦИЯ КАРУСЕЛИ (РЕДАКТИРУЕМЫЙ БЛОК) ==========
+        const NEWS_SLIDES = [
+            {
+                type: 'gradient',
+                title: '🎉 Добро пожаловать!',
+                subtitle: 'Создавайте магические портреты с AI',
+                gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                action: null
+            },
+            {
+                type: 'gradient',
+                title: '🔥 Акция недели!',
+                subtitle: 'Купи 50 генераций - получи +10 в подарок',
+                gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                action: { type: 'command', value: '/buy' }
+            },
+            {
+                type: 'gradient',
+                title: '⚡ Новые стили!',
+                subtitle: 'Киберпанк, Неон и Ретровейв уже в галерее',
+                gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                action: { type: 'tab', value: 'admin' }
+            }
+            // Добавьте свои слайды сюда:
+            // Для градиента:
+            // {
+            //     type: 'gradient',
+            //     title: '✨ Заголовок',
+            //     subtitle: 'Описание',
+            //     gradient: 'linear-gradient(135deg, #цвет1 0%, #цвет2 100%)',
+            //     action: { type: 'command', value: '/команда' }  // или null
+            // }
+            //
+            // Для изображения:
+            // {
+            //     type: 'image',
+            //     imageUrl: 'https://example.com/banner.jpg',
+            //     action: { type: 'url', value: 'https://ссылка.com' }  // или null
+            // }
+        ];
+
+        // ========== КАРУСЕЛЬ ==========
+        let currentSlide = 0;
+        let carouselInterval = null;
+
+        function initCarousel() {
+            const container = document.getElementById('carouselContainer');
+            const dotsContainer = document.getElementById('carouselDots');
+            
+            // Если нет слайдов, скрываем карусель
+            if (!NEWS_SLIDES || NEWS_SLIDES.length === 0) {
+                document.getElementById('newsCarousel').style.display = 'none';
+                return;
+            }
+            
+            NEWS_SLIDES.forEach((slide, index) => {
+                // Создаем слайд
+                const slideEl = document.createElement('div');
+                
+                if (slide.type === 'image') {
+                    slideEl.className = 'carousel-slide image-slide';
+                    slideEl.innerHTML = `<img src="${slide.imageUrl}" alt="News">`;
+                } else {
+                    slideEl.className = 'carousel-slide gradient-slide';
+                    slideEl.style.background = slide.gradient;
+                    slideEl.innerHTML = `
+                        <div class="carousel-content">
+                            <div class="carousel-title">${slide.title}</div>
+                            <div class="carousel-subtitle">${slide.subtitle}</div>
+                        </div>
+                    `;
+                }
+                
+                // Добавляем обработчик клика
+                if (slide.action) {
+                    slideEl.onclick = () => handleSlideAction(slide.action);
+                }
+                
+                container.appendChild(slideEl);
+                
+                // Создаем точку
+                const dot = document.createElement('div');
+                dot.className = index === 0 ? 'carousel-dot active' : 'carousel-dot';
+                dot.onclick = () => goToSlide(index);
+                dotsContainer.appendChild(dot);
+            });
+            
+            // Автопрокрутка каждые 5 секунд (если слайдов больше 1)
+            if (NEWS_SLIDES.length > 1) {
+                carouselInterval = setInterval(nextSlide, 5000);
+            }
+        }
+
+        function handleSlideAction(action) {
+            if (!action) return;
+            
+            if (action.type === 'command') {
+                // Отправляем команду боту
+                tg.sendData(JSON.stringify({ action: 'execute_command', command: action.value }));
+                tg.close();
+            } else if (action.type === 'url') {
+                // Открываем URL
+                tg.openLink(action.value);
+            } else if (action.type === 'tab') {
+                // Переключаем таб в галерее
+                switchTab(action.value);
+            }
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % NEWS_SLIDES.length;
+            updateCarousel();
+        }
+
+        function goToSlide(index) {
+            currentSlide = index;
+            updateCarousel();
+            
+            // Сбрасываем автопрокрутку
+            if (carouselInterval) {
+                clearInterval(carouselInterval);
+                carouselInterval = setInterval(nextSlide, 5000);
+            }
+        }
+
+        function updateCarousel() {
+            const container = document.getElementById('carouselContainer');
+            const dots = document.querySelectorAll('.carousel-dot');
+            
+            container.style.transform = `translateX(-${currentSlide * 100}%)`;
+            
+            dots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
         const imageCache = new Map();
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -395,100 +641,86 @@
                 }
             });
         }, {
-            rootMargin: '50px' // Начинаем загрузку за 50px до появления
+            rootMargin: '50px'
         });
 
         function loadImage(img) {
             const src = img.dataset.src;
             if (!src) return;
 
-            // Проверяем кэш
             if (imageCache.has(src)) {
-                img.src = src;
+                img.src = imageCache.get(src);
                 img.classList.add('loaded');
+                img.previousElementSibling?.remove();
                 return;
             }
 
-            // Создаем новый объект Image для предзагрузки
             const tempImg = new Image();
-            
             tempImg.onload = () => {
+                imageCache.set(src, src);
                 img.src = src;
                 img.classList.add('loaded');
-                imageCache.set(src, true);
-                
-                // Удаляtем placeholder
-                const placeholder = img.parentElement.querySelector('.image-placeholder');
-                if (placeholder) {
-                    setTimeout(() => placeholder.remove(), 400);
-                }
+                img.previousElementSibling?.remove();
             };
-
             tempImg.onerror = () => {
-                console.error('Failed to load image:', src);
-                // Показываем заглушку при ошибке
-                img.parentElement.style.background = 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
-                const placeholder = img.parentElement.querySelector('.image-placeholder');
-                if (placeholder) placeholder.remove();
+                img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+                img.classList.add('loaded');
+                img.previousElementSibling?.remove();
             };
-
             tempImg.src = src;
         }
 
-        // Принудительная предзагрузка первых N изображений
-        function preloadPriorityImages(count = 4) {
+        function preloadPriorityImages(count) {
             const images = document.querySelectorAll('.style-image[data-src]');
-            Array.from(images).slice(0, count).forEach(img => {
-                loadImage(img);
-                imageObserver.unobserve(img);
-            });
+            Array.from(images).slice(0, count).forEach(img => loadImage(img));
         }
-        
-        // ========== УНИВЕРСАЛЬНОЕ ПОЛУЧЕНИЕ USER ID ==========
-        
+
         function getUserId() {
-            let userId = null;
             const debugData = {
-                source: 'unknown',
-                attempts: []
+                attempts: [],
+                source: 'none'
             };
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlUserId = urlParams.get('user_id');
-            debugData.attempts.push({method: 'URL params', value: urlUserId});
-            if (urlUserId) {
-                userId = urlUserId;
-                debugData.source = 'URL';
-            }
-            
-            if (!userId && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                userId = tg.initDataUnsafe.user.id;
-                debugData.source = 'initDataUnsafe';
+
+            let userId = null;
+
+            if (tg.initDataUnsafe?.user?.id) {
+                userId = String(tg.initDataUnsafe.user.id);
+                debugData.source = 'tg.initDataUnsafe';
                 debugData.attempts.push({method: 'initDataUnsafe', value: userId});
             }
-            
+
             if (!userId && tg.initData) {
                 try {
                     const params = new URLSearchParams(tg.initData);
-                    const userStr = params.get('user');
-                    if (userStr) {
-                        const user = JSON.parse(decodeURIComponent(userStr));
-                        if (user && user.id) {
-                            userId = user.id;
-                            debugData.source = 'initData parsed';
-                            debugData.attempts.push({method: 'initData parsed', value: userId});
+                    const userParam = params.get('user');
+                    if (userParam) {
+                        const userObj = JSON.parse(decodeURIComponent(userParam));
+                        if (userObj.id) {
+                            userId = String(userObj.id);
+                            debugData.source = 'tg.initData';
+                            debugData.attempts.push({method: 'initData', value: userId});
                         }
                     }
                 } catch (e) {
-                    debugData.attempts.push({method: 'initData parsed', error: e.message});
+                    debugData.attempts.push({method: 'initData', error: e.message});
                 }
             }
-            
+
+            if (!userId) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlUserId = urlParams.get('user_id');
+                if (urlUserId) {
+                    userId = String(urlUserId);
+                    debugData.source = 'URL';
+                    debugData.attempts.push({method: 'URL', value: userId});
+                }
+            }
+
             if (!userId) {
                 try {
-                    const savedUserId = localStorage.getItem('telegram_user_id');
-                    if (savedUserId) {
-                        userId = savedUserId;
+                    const stored = localStorage.getItem('telegram_user_id');
+                    if (stored) {
+                        userId = String(stored);
                         debugData.source = 'localStorage';
                         debugData.attempts.push({method: 'localStorage', value: userId});
                     }
@@ -496,13 +728,13 @@
                     debugData.attempts.push({method: 'localStorage', error: e.message});
                 }
             }
-            
+
             if (userId) {
                 try {
                     localStorage.setItem('telegram_user_id', userId);
                 } catch (e) {}
             }
-            
+
             const debugInfo = document.getElementById('debugInfo');
             debugInfo.innerHTML = `
                 <b>DEBUG INFO</b><br>
@@ -511,7 +743,7 @@
                 Images cached: ${imageCache.size}<br>
                 <pre>${JSON.stringify(debugData.attempts, null, 2)}</pre>
             `;
-            
+
             let tapCount = 0;
             let tapTimer = null;
             document.body.addEventListener('click', () => {
@@ -523,16 +755,15 @@
                 clearTimeout(tapTimer);
                 tapTimer = setTimeout(() => tapCount = 0, 600);
             });
-            
+
             console.log('User ID Detection:', debugData);
-            
+
             return userId;
         }
-        
+
         const currentUserId = getUserId();
-        
+
         // ========== ОСНОВНОЙ КОД ==========
-        
         let currentTab = 'popular';
         let selectedStyleId = null;
 
@@ -583,11 +814,11 @@
                         </div>`;
                     return;
                 }
-                
+
                 displayStyles = displayStyles.filter(s => {
                     return String(s.creator_id) === String(currentUserId);
                 });
-                
+
                 if (displayStyles.length === 0) {
                     grid.innerHTML = '<div class="empty-message">У вас пока нет своих стилей<br><small>Создайте их в боте через кнопку - Придумать свой стиль!</small></div>';
                     return;
@@ -606,7 +837,7 @@
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
-                card.style.animationDelay = `${index * 0.05}s`; // Каскадная анимация
+                card.style.animationDelay = `${index * 0.05}s`;
                 card.onclick = () => selectStyle(style.id);
 
                 let hitBadge = '';
@@ -645,7 +876,7 @@
                         </div>
                         <div class="info-row">
                             <div class="style-stats">
-                                <span class="stat-item">👁️ ${style.uses}</span>
+                                <span class="stat-item">💖 ${style.uses}</span>
                             </div>
                         </div>
                     </div>
@@ -710,8 +941,46 @@
             }
         });
 
-        // Инициализация
-        renderGrid();
+        // ========== ИНИЦИАЛИЗАЦИЯ С ЗАГРУЗКОЙ ==========
+        async function initApp() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingProgress = document.getElementById('loadingProgress');
+            
+            // Симуляция загрузки с прогрессом
+            let progress = 0;
+            const loadingInterval = setInterval(() => {
+                progress += Math.random() * 25;
+                if (progress > 90) progress = 90;
+                loadingProgress.textContent = Math.round(progress) + '%';
+            }, 150);
+            
+            // Инициализируем карусель
+            initCarousel();
+            
+            // Ждем загрузки GALLERY_STYLES (максимум 2 секунды)
+            let attempts = 0;
+            while (typeof GALLERY_STYLES === 'undefined' && attempts < 20) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            clearInterval(loadingInterval);
+            loadingProgress.textContent = '100%';
+            
+            // Рендерим галерею
+            renderGrid();
+            
+            // Скрываем загрузку с анимацией
+            setTimeout(() => {
+                loadingOverlay.classList.add('hidden');
+                setTimeout(() => {
+                    loadingOverlay.remove();
+                }, 500);
+            }, 300);
+        }
+
+        // Запускаем инициализацию
+        initApp();
     </script>
 </body>
 </html>
