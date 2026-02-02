@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ IMAGEBAN: Скрываем Referer, чтобы хостинг не блокировал хотлинк -->
+    <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Галерея</title>
     <script>
         // Cache busting - добавляем версию
-        const APP_VERSION = '1.0.5';
+        const APP_VERSION = '1.0.6';
         const storedVersion = localStorage.getItem('app_version');
         
         if (storedVersion !== APP_VERSION) {
             console.log('🔄 Обновление версии:', storedVersion, '→', APP_VERSION);
-            // Очищаем старый кэш
             try {
                 const keysToRemove = [];
                 for (let i = 0; i < localStorage.length; i++) {
@@ -626,6 +627,7 @@
     <div class="debug-toggle" onclick="toggleDebug()">🔧</div>
     <div class="debug-info" id="debugInfo"></div>
 
+    <!-- styles.js должен содержать массив GALLERY_STYLES -->
     <script src="styles.js"></script>
 
     <script>
@@ -664,7 +666,6 @@
             loadErrors: []
         };
 
-        // Определяем движок WebView
         function detectWebView() {
             const ua = navigator.userAgent;
             if (ua.includes('Chrome/')) {
@@ -673,9 +674,6 @@
             }
             if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
                 return 'WebKit (Safari)';
-            }
-            if (ua.includes('Gecko/')) {
-                return 'Gecko (Firefox)';
             }
             return 'Unknown';
         }
@@ -711,9 +709,8 @@
         }
 
         function clearAllCache() {
-            if (confirm('🗑️ Очистить весь кэш и перезагрузить?\n\nЭто может помочь если изображения не грузятся.')) {
+            if (confirm('🗑️ Очистить весь кэш и перезагрузить?\n\nЭто поможет если изображения не грузятся.')) {
                 try {
-                    // Очищаем localStorage
                     const keysToRemove = [];
                     for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
@@ -722,17 +719,11 @@
                         }
                     }
                     keysToRemove.forEach(key => localStorage.removeItem(key));
-                    
-                    // Очищаем memory кэш
                     imageCache.clear();
-                    
-                    showConnectionStatus('✓ Кэш очищен! Перезагружаем...', 2000);
-                    
-                    setTimeout(() => {
-                        window.location.reload(true);
-                    }, 1000);
+                    showConnectionStatus('✓ Кэш очищен!', 2000);
+                    setTimeout(() => window.location.reload(true), 500);
                 } catch (e) {
-                    alert('Ошибка очистки кэша: ' + e.message);
+                    alert('Ошибка: ' + e.message);
                 }
             }
         }
@@ -743,34 +734,14 @@
                 diagnostics.telegramVersion = tg?.version || 'unknown';
                 diagnostics.platform = tg?.platform || navigator.platform;
                 diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
-                
                 diagnostics.userIdMethods = [];
                 
-                if (tg?.initDataUnsafe?.user?.id) {
-                    diagnostics.userIdMethods.push('✓ initDataUnsafe.user.id');
-                } else {
-                    diagnostics.userIdMethods.push('✗ initDataUnsafe.user.id');
-                }
+                if (tg?.initDataUnsafe?.user?.id) diagnostics.userIdMethods.push('✓ initDataUnsafe');
+                else diagnostics.userIdMethods.push('✗ initDataUnsafe');
 
                 const urlUserId = new URLSearchParams(window.location.search).get('user_id');
-                if (urlUserId) {
-                    diagnostics.userIdMethods.push('✓ URL parameter');
-                } else {
-                    diagnostics.userIdMethods.push('✗ URL parameter');
-                }
-
-                if (tg?.initData) {
-                    diagnostics.userIdMethods.push('✓ initData available');
-                } else {
-                    diagnostics.userIdMethods.push('✗ initData not available');
-                }
-
-                const savedUserId = localStorage.getItem('telegram_user_id');
-                if (savedUserId) {
-                    diagnostics.userIdMethods.push('✓ localStorage');
-                } else {
-                    diagnostics.userIdMethods.push('✗ localStorage');
-                }
+                if (urlUserId) diagnostics.userIdMethods.push('✓ URL param');
+                else diagnostics.userIdMethods.push('✗ URL param');
 
             } catch (e) {
                 diagnostics.errors.push('Ошибка диагностики: ' + e.message);
@@ -779,126 +750,62 @@
 
         function updateDebugDisplay() {
             collectDiagnostics();
-            
             const debugInfo = document.getElementById('debugInfo');
-            const loadSuccessRate = loadStats.totalImages > 0 
-                ? ((loadStats.loadedImages / loadStats.totalImages) * 100).toFixed(0) 
-                : 0;
+            const loadSuccessRate = loadStats.totalImages > 0 ? ((loadStats.loadedImages / loadStats.totalImages) * 100).toFixed(0) : 0;
 
             debugInfo.innerHTML = `
                 <div class="debug-section">
-                    <div class="debug-title">📱 УСТРОЙСТВО & ДВИЖОК</div>
-                    App версия: ${diagnostics.appVersion}<br>
-                    Telegram: ${diagnostics.telegramVersion}<br>
-                    Платформа: ${diagnostics.platform}<br>
-                    WebView: <span class="debug-warning">${diagnostics.webViewEngine}</span><br>
-                    <small>${diagnostics.userAgent}</small>
+                    <div class="debug-title">📱 УСТРОЙСТВО</div>
+                    App: ${diagnostics.appVersion} | TG: ${diagnostics.telegramVersion}<br>
+                    Engine: <span class="debug-warning">${diagnostics.webViewEngine}</span>
                 </div>
-
                 <div class="debug-section">
-                    <div class="debug-title">👤 USER ID</div>
-                    ${diagnostics.userIdMethods.map(m => {
-                        const isSuccess = m.startsWith('✓');
-                        return `<div class="${isSuccess ? 'debug-success' : 'debug-error'}">${m}</div>`;
-                    }).join('')}<br>
-                    <b>User ID:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
-                    Источник: ${userIdSource}
+                    <div class="debug-title">👤 USER: ${currentUserId || 'NULL'}</div>
+                    Методы: ${diagnostics.userIdMethods.join(', ')}
                 </div>
-
                 <div class="debug-section">
-                    <div class="debug-title">🖼️ ЗАГРУЗКА ИЗОБРАЖЕНИЙ</div>
-                    Всего: ${loadStats.totalImages}<br>
-                    <span class="${loadStats.loadedImages > 0 ? 'debug-success' : 'debug-error'}">✓ Загружено: ${loadStats.loadedImages}</span><br>
-                    <span class="${loadStats.failedImages > 0 ? 'debug-error' : 'debug-success'}">✗ Ошибок: ${loadStats.failedImages}</span><br>
-                    🔄 Retry: ${loadStats.retriedImages}<br>
-                    💥 Cache busted: ${loadStats.cacheBusted}<br>
-                    📊 Успешность: <span class="${loadSuccessRate > 50 ? 'debug-success' : 'debug-error'}">${loadSuccessRate}%</span><br>
-                    💾 В кэше: ${imageCache.size}<br>
-                    ⏱️ Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
+                    <div class="debug-title">🖼️ СТАТИСТИКА ЗАГРУЗКИ</div>
+                    Успешно: <span class="debug-success">${loadStats.loadedImages}/${loadStats.totalImages}</span> (${loadSuccessRate}%)<br>
+                    Ошибок: <span class="debug-error">${loadStats.failedImages}</span> | Retry: ${loadStats.retriedImages}
                 </div>
-
-                ${diagnostics.loadErrors.length > 0 ? `
                 <div class="debug-section">
-                    <div class="debug-title debug-error">❌ ОШИБКИ ЗАГРУЗКИ</div>
-                    ${diagnostics.loadErrors.slice(-5).map(e => `<div class="debug-error">${e}</div>`).join('')}
-                </div>
-                ` : ''}
-
-                <div class="debug-section">
-                    <div class="debug-title">💡 РЕКОМЕНДАЦИИ</div>
-                    ${loadStats.failedImages > 2 ? `
-                        <div class="debug-error">⚠️ Много ошибок загрузки!</div>
-                        <div class="debug-warning">
-                        • Попробуйте очистить кэш (🗑️ кнопка)<br>
-                        • Проверьте интернет соединение<br>
-                        • Перезапустите Telegram<br>
-                        • Обновите Telegram до последней версии
-                        </div>
-                    ` : ''}
-                    ${diagnostics.webViewEngine.includes('Unknown') ? `
-                        <div class="debug-warning">⚠️ Неизвестный движок WebView</div>
-                    ` : ''}
-                    ${loadStats.loadedImages === loadStats.totalImages && loadStats.totalImages > 0 ? `
-                        <div class="debug-success">✓ Всё работает отлично!</div>
-                    ` : ''}
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">🔧 ДЕЙСТВИЯ</div>
-                    <button class="retry-btn" onclick="clearAllCache()" style="width: 100%; margin: 4px 0;">
-                        🗑️ Очистить кэш и перезагрузить
-                    </button>
-                    <button class="retry-btn" onclick="renderGrid()" style="width: 100%; margin: 4px 0; background: #ff9800;">
-                        🔄 Перезагрузить галерею
-                    </button>
+                    <button class="retry-btn" onclick="clearAllCache()" style="width:100%">🗑️ Очистить кэш</button>
                 </div>
             `;
         }
         
-        // ========== УМНАЯ ЗАГРУЗКА С CACHE BUSTING ==========
+        // ========== УМНАЯ ЗАГРУЗКА БЕЗ REFERER И CORS ==========
         
         const imageCache = new Map();
-        const MAX_RETRIES = 3;
-        const RETRY_DELAYS = [800, 1500, 3000];
+        const MAX_RETRIES = 2;
 
-        // Cache busting для imageban.ru
         function addCacheBuster(url) {
             const separator = url.includes('?') ? '&' : '?';
-            const timestamp = Date.now();
-            const random = Math.random().toString(36).substring(7);
-            return `${url}${separator}cb=${timestamp}_${random}`;
+            return `${url}${separator}v=${APP_VERSION}_${Math.random().toString(36).substring(7)}`;
         }
 
         function loadImageWithRetry(img, attempt = 0, forceCacheBust = false) {
-            const originalSrc = img.dataset.src;
+            let originalSrc = img.dataset.src;
             if (!originalSrc) return;
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Force HTTPS для ImageBan
+            if (originalSrc.startsWith('http://')) {
+                originalSrc = originalSrc.replace('http://', 'https://');
+            }
 
             const container = img.closest('.image-container');
             const loadingIndicator = container?.querySelector('.loading-indicator');
-            const retryInfo = loadingIndicator?.querySelector('.retry-info');
 
-            // Проверяем memory кэш (не localStorage!)
-            const cacheKey = originalSrc;
-            if (!forceCacheBust && imageCache.has(cacheKey)) {
-                img.src = imageCache.get(cacheKey);
+            // 1. Проверка memory-кэша
+            if (!forceCacheBust && imageCache.has(originalSrc)) {
+                img.src = imageCache.get(originalSrc);
                 img.classList.add('loaded');
                 loadStats.loadedImages++;
-                if (loadingIndicator) {
-                    setTimeout(() => loadingIndicator.remove(), 200);
-                }
+                if (loadingIndicator) loadingIndicator.remove();
                 return;
             }
 
-            // Обновляем статус
-            if (retryInfo) {
-                if (forceCacheBust || attempt > 0) {
-                    retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}${forceCacheBust ? ' (без кэша)' : ''}`;
-                } else {
-                    retryInfo.textContent = 'Загрузка...';
-                }
-            }
-
-            // Добавляем cache buster при retry или для imageban.ru
+            // 2. Настройка URL
             let srcToLoad = originalSrc;
             if (forceCacheBust || attempt > 0 || originalSrc.includes('imageban.ru')) {
                 srcToLoad = addCacheBuster(originalSrc);
@@ -907,66 +814,35 @@
 
             const tempImg = new Image();
             
-            // Таймаут зависит от попытки
-            const timeout = 8000 + (attempt * 2000); // 8s, 10s, 12s
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 
+            // НЕ используем crossOrigin = 'anonymous', так как ImageBan не всегда шлет CORS заголовки.
+            // Без него картинка просто отобразится в <img>, что нам и нужно.
+            
+            const timeout = 10000; 
             const loadTimeout = setTimeout(() => {
                 tempImg.src = '';
                 handleLoadError();
             }, timeout);
 
-            // Важно для imageban.ru
-            tempImg.crossOrigin = 'anonymous';
-            
-            // Отключаем кэширование браузера
-            tempImg.setAttribute('referrerpolicy', 'no-referrer');
-
             tempImg.onload = () => {
                 clearTimeout(loadTimeout);
-                
-                // Успех!
                 img.src = srcToLoad;
                 img.classList.add('loaded');
-                
-                // Сохраняем в memory кэш
-                imageCache.set(cacheKey, srcToLoad);
-                
-                if (loadingIndicator) {
-                    setTimeout(() => loadingIndicator.remove(), 400);
-                }
-
+                imageCache.set(originalSrc, srcToLoad);
+                if (loadingIndicator) loadingIndicator.remove();
                 loadStats.loadedImages++;
-                console.log(`✓ Загружено [${loadStats.loadedImages}/${loadStats.totalImages}]:`, originalSrc.substring(0, 60));
-
-                if (loadStats.loadedImages === 1) {
-                    showConnectionStatus('✓ Загрузка работает', 1500);
-                }
             };
 
             tempImg.onerror = handleLoadError;
 
             function handleLoadError() {
                 clearTimeout(loadTimeout);
-                
-                const errorMsg = `${new Date().toLocaleTimeString()} - Ошибка: ${originalSrc.substring(0, 50)}... (попытка ${attempt + 1})`;
-                console.error('✗', errorMsg);
-                diagnostics.loadErrors.push(errorMsg);
-                
                 if (attempt < MAX_RETRIES) {
                     loadStats.retriedImages++;
-                    const delay = RETRY_DELAYS[attempt] || 3000;
-                    
-                    setTimeout(() => {
-                        // При повторной попытке принудительно игнорируем кэш
-                        loadImageWithRetry(img, attempt + 1, true);
-                    }, delay);
+                    setTimeout(() => loadImageWithRetry(img, attempt + 1, true), 1000);
                 } else {
-                    // Все попытки исчерпаны
                     loadStats.failedImages++;
                     showErrorPlaceholder(container, originalSrc);
-                    
-                    if (loadStats.failedImages === 3) {
-                        showConnectionStatus('⚠️ Проблемы с загрузкой - нажмите 🔧', 4000);
-                    }
                 }
             }
 
@@ -980,132 +856,60 @@
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-placeholder';
             errorDiv.innerHTML = `
-                <svg viewBox="0 0 24 24">
-                    <path d="M21.9,21.9l-8.49-8.49l0,0L3.59,3.59l0,0L2.1,2.1L0.69,3.51L3,5.83V19c0,1.1,0.9,2,2,2h13.17l2.31,2.31L21.9,21.9z M5,18 l3.5-4.5l2.5,3.01L12.17,15l3,3H5z M21,18.17L5.83,3H19c1.1,0,2,0.9,2,2V18.17z"/>
-                </svg>
-                <div class="error-text">Не удалось загрузить<br><small>Нажмите 🔧 для помощи</small></div>
-                <button class="retry-btn" onclick="retryImage('${src}', this)">Повторить</button>
+                <svg viewBox="0 0 24 24"><path d="M21.9,21.9l-8.49-8.49l0,0L3.59,3.59l0,0L2.1,2.1L0.69,3.51L3,5.83V19c0,1.1,0.9,2,2,2h13.17l2.31,2.31L21.9,21.9z M5,18 l3.5-4.5l2.5,3.01L12.17,15l3,3H5z M21,18.17L5.83,3H19c1.1,0,2,0.9,2,2V18.17z"/></svg>
+                <div class="error-text">Ошибка загрузки<br><small>ImageBan заблокировал запрос</small></div>
+                <button class="retry-btn" onclick="retryImage('${src}', this)">🔄</button>
             `;
             container.appendChild(errorDiv);
         }
 
         window.retryImage = function(src, button) {
             const container = button.closest('.image-container');
-            const errorPlaceholder = container.querySelector('.error-placeholder');
-            if (errorPlaceholder) errorPlaceholder.remove();
-
+            container.querySelector('.error-placeholder')?.remove();
+            
             const loadingIndicator = document.createElement('div');
             loadingIndicator.className = 'loading-indicator';
-            loadingIndicator.innerHTML = `
-                <div class="loading-spinner"></div>
-                <div class="retry-info">Повторная попытка...</div>
-            `;
+            loadingIndicator.innerHTML = `<div class="loading-spinner"></div>`;
             container.appendChild(loadingIndicator);
 
             const img = container.querySelector('.style-image');
             img.dataset.src = src;
-            
-            // При ручном retry - принудительно без кэша
             loadImageWithRetry(img, 0, true);
         };
 
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    const img = entry.target;
-                    loadImageWithRetry(img, 0, false);
-                    imageObserver.unobserve(img);
+                    loadImageWithRetry(entry.target, 0, false);
+                    imageObserver.unobserve(entry.target);
                 }
             });
-        }, {
-            rootMargin: '150px' // Увеличили для более ранней загрузки
-        });
+        }, { rootMargin: '200px' });
 
-        function preloadPriorityImages(count = 2) {
-            const images = document.querySelectorAll('.style-image[data-src]');
-            Array.from(images).slice(0, count).forEach(img => {
-                loadImageWithRetry(img, 0, false);
-                imageObserver.unobserve(img);
-            });
-        }
-        
         // ========== USER ID ==========
         
-        let userIdSource = 'unknown';
-        
         function getUserId() {
-            let userId = null;
-            
             try {
                 const urlParams = new URLSearchParams(window.location.search);
-                const urlUserId = urlParams.get('user_id');
-                if (urlUserId) {
-                    userId = urlUserId;
-                    userIdSource = 'URL parameter';
+                const uId = urlParams.get('user_id') || tg?.initDataUnsafe?.user?.id;
+                if (uId) {
+                    localStorage.setItem('telegram_user_id', uId);
+                    return uId;
                 }
-            } catch (e) {}
-            
-            if (!userId) {
-                try {
-                    if (tg?.initDataUnsafe?.user?.id) {
-                        userId = tg.initDataUnsafe.user.id;
-                        userIdSource = 'initDataUnsafe.user.id';
-                    }
-                } catch (e) {}
-            }
-            
-            if (!userId) {
-                try {
-                    if (tg?.initData) {
-                        const params = new URLSearchParams(tg.initData);
-                        const userStr = params.get('user');
-                        if (userStr) {
-                            const user = JSON.parse(decodeURIComponent(userStr));
-                            if (user?.id) {
-                                userId = user.id;
-                                userIdSource = 'initData parsed';
-                            }
-                        }
-                    }
-                } catch (e) {}
-            }
-            
-            if (!userId) {
-                try {
-                    const savedUserId = localStorage.getItem('telegram_user_id');
-                    if (savedUserId) {
-                        userId = savedUserId;
-                        userIdSource = 'localStorage';
-                    }
-                } catch (e) {}
-            }
-            
-            if (userId) {
-                try {
-                    localStorage.setItem('telegram_user_id', userId);
-                } catch (e) {}
-            }
-            
-            return userId;
+                return localStorage.getItem('telegram_user_id');
+            } catch (e) { return null; }
         }
         
         const currentUserId = getUserId();
-        console.log(`👤 User ID: ${currentUserId} (${userIdSource})`);
         
-        // ========== ОСНОВНОЙ КОД ==========
+        // ========== ГРИД И ТАБЫ ==========
         
         let currentTab = 'popular';
         let selectedStyleId = null;
 
         function getRatingHTML(uses) {
-            let starsCount = 1;
-            if (uses > 50) starsCount = 5;
-            else if (uses > 20) starsCount = 4;
-            else if (uses > 10) starsCount = 3;
-            else if (uses > 5) starsCount = 2;
-
-            let stars = '★'.repeat(starsCount) + '☆'.repeat(5 - starsCount);
-            return `<span class="stars">${stars}</span>`;
+            let starsCount = uses > 50 ? 5 : (uses > 20 ? 4 : (uses > 10 ? 3 : (uses > 5 ? 2 : 1)));
+            return `<span class="stars">${'★'.repeat(starsCount)}${'☆'.repeat(5 - starsCount)}</span>`;
         }
 
         function renderGrid() {
@@ -1115,185 +919,90 @@
             loadStats.totalImages = 0;
             loadStats.loadedImages = 0;
             loadStats.failedImages = 0;
-            loadStats.retriedImages = 0;
-            loadStats.cacheBusted = 0;
-            loadStats.startTime = Date.now();
-            diagnostics.loadErrors = [];
 
-            if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
-                setTimeout(() => {
-                    if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                        grid.innerHTML = '<div class="empty-message">Галерея недоступна<br><small>Нажмите 🔧 для диагностики</small></div>';
-                    }
-                }, 3000);
+            if (typeof GALLERY_STYLES === 'undefined') {
+                grid.innerHTML = '<div class="empty-message">Ошибка: Стили не загружены</div>';
                 return;
             }
 
             let displayStyles = [...GALLERY_STYLES];
 
-            if (currentTab === 'admin') {
-                displayStyles = displayStyles.filter(s => s.is_admin === true);
-                if (displayStyles.length === 0) {
-                    grid.innerHTML = '<div class="empty-message">Коллекция редакции пока пуста</div>';
-                    return;
-                }
-            } else if (currentTab === 'mine') {
-                if (!currentUserId) {
-                    grid.innerHTML = `
-                        <div class="empty-message">
-                            ⚠️ User ID не найден<br><br>
-                            Нажмите 🔧 для диагностики
-                        </div>`;
-                    return;
-                }
-                
-                displayStyles = displayStyles.filter(s => {
-                    return String(s.creator_id) === String(currentUserId);
-                });
-                
-                if (displayStyles.length === 0) {
-                    grid.innerHTML = '<div class="empty-message">У вас пока нет стилей<br><small>Создайте их в боте!</small></div>';
-                    return;
-                }
+            if (currentTab === 'admin') displayStyles = displayStyles.filter(s => s.is_admin);
+            else if (currentTab === 'mine') displayStyles = displayStyles.filter(s => String(s.creator_id) === String(currentUserId));
+
+            if (displayStyles.length === 0) {
+                grid.innerHTML = '<div class="empty-message">Пусто</div>';
+                return;
             }
 
-            if (currentTab === 'popular' || currentTab === 'admin') {
-                displayStyles.sort((a, b) => b.uses - a.uses);
-            } else {
-                displayStyles.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-            }
-
+            displayStyles.sort((a, b) => b.uses - a.uses);
             loadStats.totalImages = displayStyles.length;
-            console.log(`📊 Рендерим ${loadStats.totalImages} стилей`);
 
             displayStyles.forEach((style, index) => {
                 const card = document.createElement('div');
                 card.className = 'style-card';
                 card.id = style.id;
-                card.style.animationDelay = `${index * 0.05}s`;
                 card.onclick = () => selectStyle(style.id);
 
-                let hitBadge = '';
-                if (style.uses > 50) {
-                    hitBadge = '<div class="hit-badge"><span>🔥</span> ХИТ</div>';
-                } else if (style.uses > 20) {
-                    hitBadge = '<div class="hit-badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ ТОП</div>';
-                }
-
-                let deleteBtn = '';
-                if (currentUserId && String(style.creator_id) === String(currentUserId)) {
-                    deleteBtn = `
-                        <div class="delete-btn" onclick="deleteStyle(event, '${style.id}')">
-                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                        </div>`;
-                }
-
-                let styleType = '🎨 Стиль';
-                if (style.uses > 30) styleType = '🏆 Легенда';
-                else if (style.uses > 15) styleType = '⚡ Популярный';
-                else if (style.is_admin) styleType = '👑 Премиум';
-
+                const isOwner = currentUserId && String(style.creator_id) === String(currentUserId);
+                
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавлен referrerpolicy="no-referrer" в тег img
                 card.innerHTML = `
-                    ${hitBadge}
-                    ${deleteBtn}
+                    ${style.uses > 30 ? '<div class="hit-badge">🔥 ТОП</div>' : ''}
+                    ${isOwner ? `<div class="delete-btn" onclick="deleteStyle(event, '${style.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></div>` : ''}
                     <div class="image-container">
                         <div class="image-placeholder"></div>
-                        <div class="loading-indicator">
-                            <div class="loading-spinner"></div>
-                            <div class="retry-info">Загрузка...</div>
-                        </div>
+                        <div class="loading-indicator"><div class="loading-spinner"></div></div>
                         <div class="image-overlay"></div>
-                        <img class="style-image" data-src="${style.img}" alt="${style.author}">
+                        <img class="style-image" 
+                             referrerpolicy="no-referrer" 
+                             data-src="${style.img}" 
+                             alt="style">
                     </div>
-                    <div class="style-tag">${styleType}</div>
                     <div class="style-info">
                         <div class="info-row">
                             <span class="author-name">@${style.author}</span>
                             ${getRatingHTML(style.uses)}
                         </div>
-                        <div class="info-row">
-                            <div class="style-stats">
-                                <span class="stat-item">👁️ ${style.uses}</span>
-                            </div>
-                        </div>
+                        <div class="style-stats">👁️ ${style.uses}</div>
                     </div>
                 `;
                 grid.appendChild(card);
             });
 
-            const images = grid.querySelectorAll('.style-image[data-src]');
-            images.forEach(img => imageObserver.observe(img));
-
-            setTimeout(() => preloadPriorityImages(2), 100);
+            grid.querySelectorAll('.style-image').forEach(img => imageObserver.observe(img));
         }
 
         function switchTab(tabName) {
             currentTab = tabName;
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.querySelector(`.tab[onclick*="${tabName}"]`).classList.add('active');
             selectedStyleId = null;
-            if (tg?.MainButton) tg.MainButton.hide();
+            tg.MainButton.hide();
             renderGrid();
         }
 
         function selectStyle(id) {
-            if (selectedStyleId) {
-                const old = document.getElementById(selectedStyleId);
-                if (old) old.classList.remove('selected');
-            }
+            if (selectedStyleId) document.getElementById(selectedStyleId)?.classList.remove('selected');
             selectedStyleId = id;
-            const newCard = document.getElementById(id);
-            if (newCard) {
-                newCard.classList.add('selected');
-                if (tg?.HapticFeedback) {
-                    try {
-                        tg.HapticFeedback.impactOccurred('medium');
-                    } catch (e) {}
-                }
-            }
-            if (tg?.MainButton) tg.MainButton.show();
+            document.getElementById(id)?.classList.add('selected');
+            tg.HapticFeedback?.impactOccurred('medium');
+            tg.MainButton.show();
         }
 
         function deleteStyle(event, id) {
             event.stopPropagation();
-            if (tg?.HapticFeedback) {
-                try {
-                    tg.HapticFeedback.notificationOccurred('warning');
-                } catch (e) {}
-            }
-            if (tg?.showConfirm) {
-                tg.showConfirm("Удалить этот стиль навсегда?", (confirmed) => {
-                    if (confirmed) {
-                        const data = { action: 'delete_style', style_id: id };
-                        if (tg?.sendData) {
-                            tg.sendData(JSON.stringify(data));
-                        }
-                    }
-                });
-            }
-        }
-
-        if (tg?.MainButton) {
-            tg.MainButton.onClick(() => {
-                const data = { action: 'use_gallery_style', style_id: selectedStyleId };
-                if (tg?.sendData) {
-                    tg.sendData(JSON.stringify(data));
-                }
+            tg.showConfirm("Удалить этот стиль?", (ok) => {
+                if (ok) tg.sendData(JSON.stringify({ action: 'delete_style', style_id: id }));
             });
         }
 
-        // Инициализация
-        console.log('🚀 Запуск галереи v' + APP_VERSION);
-        renderGrid();
+        tg.MainButton.onClick(() => {
+            tg.sendData(JSON.stringify({ action: 'use_gallery_style', style_id: selectedStyleId }));
+        });
 
-        // Автодиагностика
-        setTimeout(() => {
-            if (loadStats.failedImages > 2) {
-                console.warn('⚠️ Обнаружены проблемы с загрузкой');
-                showConnectionStatus('⚠️ Проблемы с загрузкой - нажмите 🔧', 5000);
-            }
-        }, 4000);
+        // Запуск
+        renderGrid();
     </script>
 </body>
 </html>
