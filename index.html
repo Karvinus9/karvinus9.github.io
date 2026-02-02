@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Галерея</title>
-    <!-- Поддержка старых и новых версий Telegram -->
     <script>
-        // Фоллбек если telegram-web-app.js не загрузится
         window.TelegramWebAppReady = false;
         setTimeout(() => {
             if (!window.TelegramWebAppReady) {
@@ -39,7 +37,6 @@
     </script>
     <script src="https://telegram.org/js/telegram-web-app.js" onerror="console.error('Failed to load Telegram SDK')"></script>
     <script>
-        // Проверяем что SDK загрузился
         if (window.Telegram && window.Telegram.WebApp) {
             window.TelegramWebAppReady = true;
         }
@@ -64,7 +61,6 @@
             min-height: 100vh;
         }
 
-        /* ТАБЫ */
         .tabs {
             position: sticky;
             top: 0;
@@ -110,7 +106,6 @@
             border-radius: 2px;
         }
 
-        /* СЕТКА */
         .gallery-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -139,7 +134,6 @@
             box-shadow: 0 4px 20px rgba(var(--tg-theme-button-color-rgb, 0, 136, 204), 0.3);
         }
 
-        /* ИЗОБРАЖЕНИЯ */
         .image-container {
             position: relative;
             width: 100%;
@@ -190,11 +184,13 @@
         }
 
         .retry-info {
-            font-size: 10px;
+            font-size: 9px;
             color: var(--hint-color);
             background: rgba(255, 255, 255, 0.9);
             padding: 3px 8px;
             border-radius: 12px;
+            max-width: 140px;
+            text-align: center;
         }
 
         .style-image {
@@ -210,10 +206,6 @@
 
         .style-image.loaded {
             opacity: 1;
-        }
-
-        .style-image.error {
-            display: none;
         }
 
         .style-card:hover .style-image.loaded {
@@ -254,10 +246,11 @@
         }
 
         .error-text {
-            font-size: 11px;
+            font-size: 10px;
             color: #c62828;
             text-align: center;
             padding: 0 10px;
+            line-height: 1.3;
         }
 
         .retry-btn {
@@ -363,7 +356,6 @@
 
         .delete-btn:active {
             transform: scale(0.9);
-            background: rgba(255, 255, 255, 1);
         }
 
         .delete-btn svg { 
@@ -410,7 +402,6 @@
             margin: 16px 0 8px;
         }
 
-        /* Статус соединения */
         .connection-status {
             position: fixed;
             top: 60px;
@@ -457,7 +448,6 @@
             50% { opacity: 0.3; }
         }
 
-        /* Диагностика */
         .debug-info {
             position: fixed;
             bottom: 0;
@@ -537,7 +527,6 @@
             height: 0;
         }
 
-        /* Кнопка диагностики */
         .debug-toggle {
             position: fixed;
             bottom: 90px;
@@ -584,7 +573,7 @@
     <script src="styles.js"></script>
 
     <script>
-        // ========== ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP ==========
+        // ========== TELEGRAM INIT ==========
         
         let tg;
         try {
@@ -594,7 +583,7 @@
             tg.MainButton.text = "ПРИМЕНИТЬ СТИЛЬ";
             console.log('✓ Telegram WebApp инициализирован');
         } catch (e) {
-            console.error('✗ Ошибка инициализации Telegram WebApp:', e);
+            console.error('✗ Ошибка инициализации:', e);
             tg = window.Telegram?.WebApp || {
                 ready: () => {},
                 expand: () => {},
@@ -604,145 +593,36 @@
             };
         }
         
-        // ========== РАСШИРЕННАЯ ДИАГНОСТИКА ==========
+        // ========== СПИСОК CORS ПРОКСИ ==========
+        
+        const CORS_PROXIES = [
+            '', // Прямая загрузка (без прокси)
+            'https://corsproxy.io/?', 
+            'https://api.allorigins.win/raw?url=',
+            'https://cors-anywhere.herokuapp.com/'
+        ];
+
+        let currentProxyIndex = 0;
+        
+        // ========== СТАТИСТИКА ==========
         
         const diagnostics = {
             telegramVersion: null,
-            webAppVersion: null,
             platform: null,
             userIdMethods: [],
             sdkLoaded: false,
             initDataAvailable: false,
-            errors: []
+            errors: [],
+            proxyUsed: 'none',
+            corsBlocked: false
         };
 
-        function collectDiagnostics() {
-            try {
-                diagnostics.sdkLoaded = !!window.Telegram?.WebApp;
-                diagnostics.telegramVersion = tg?.version || 'unknown';
-                diagnostics.webAppVersion = tg?.version || 'N/A';
-                diagnostics.platform = tg?.platform || navigator.platform;
-                diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
-                
-                // Проверяем все возможные источники
-                if (tg?.initDataUnsafe?.user?.id) {
-                    diagnostics.userIdMethods.push('✓ initDataUnsafe.user.id');
-                } else {
-                    diagnostics.userIdMethods.push('✗ initDataUnsafe.user.id');
-                }
-
-                const urlUserId = new URLSearchParams(window.location.search).get('user_id');
-                if (urlUserId) {
-                    diagnostics.userIdMethods.push('✓ URL parameter');
-                } else {
-                    diagnostics.userIdMethods.push('✗ URL parameter');
-                }
-
-                if (tg?.initData) {
-                    try {
-                        const params = new URLSearchParams(tg.initData);
-                        const userStr = params.get('user');
-                        if (userStr) {
-                            diagnostics.userIdMethods.push('✓ initData parsed');
-                        } else {
-                            diagnostics.userIdMethods.push('✗ initData parsed');
-                        }
-                    } catch (e) {
-                        diagnostics.userIdMethods.push('✗ initData parsed (error)');
-                    }
-                } else {
-                    diagnostics.userIdMethods.push('✗ initData not available');
-                }
-
-                const savedUserId = localStorage.getItem('telegram_user_id');
-                if (savedUserId) {
-                    diagnostics.userIdMethods.push('✓ localStorage');
-                } else {
-                    diagnostics.userIdMethods.push('✗ localStorage');
-                }
-
-            } catch (e) {
-                diagnostics.errors.push('Ошибка сбора диагностики: ' + e.message);
-            }
-        }
-
-        function toggleDebug() {
-            const debugInfo = document.getElementById('debugInfo');
-            debugInfo.classList.toggle('show');
-            if (debugInfo.classList.contains('show')) {
-                updateDebugDisplay();
-            }
-        }
-
-        function updateDebugDisplay() {
-            collectDiagnostics();
-            
-            const debugInfo = document.getElementById('debugInfo');
-            debugInfo.innerHTML = `
-                <div class="debug-section">
-                    <div class="debug-title">🔧 TELEGRAM WEB APP</div>
-                    SDK загружен: <span class="${diagnostics.sdkLoaded ? 'debug-success' : 'debug-error'}">${diagnostics.sdkLoaded ? 'ДА' : 'НЕТ'}</span><br>
-                    Версия: ${diagnostics.telegramVersion}<br>
-                    Платформа: ${diagnostics.platform}<br>
-                    InitData доступен: <span class="${diagnostics.initDataAvailable ? 'debug-success' : 'debug-error'}">${diagnostics.initDataAvailable ? 'ДА' : 'НЕТ'}</span>
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">👤 USER ID МЕТОДЫ</div>
-                    ${diagnostics.userIdMethods.map(m => {
-                        const isSuccess = m.startsWith('✓');
-                        return `<div class="${isSuccess ? 'debug-success' : 'debug-error'}">${m}</div>`;
-                    }).join('')}<br>
-                    <b>Результат:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
-                    Источник: ${userIdSource}
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">📊 ЗАГРУЗКА ИЗОБРАЖЕНИЙ</div>
-                    Всего: ${loadStats.totalImages}<br>
-                    <span class="debug-success">Загружено: ${loadStats.loadedImages}</span><br>
-                    <span class="debug-error">Ошибок: ${loadStats.failedImages}</span><br>
-                    Retry: ${loadStats.retriedImages}<br>
-                    Кэш: ${imageCache.size}<br>
-                    Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">🌐 СЕТЬ</div>
-                    Navigator.onLine: ${navigator.onLine ? '✓' : '✗'}<br>
-                    User Agent: ${navigator.userAgent.substring(0, 80)}...
-                </div>
-
-                <div class="debug-section">
-                    <div class="debug-title">📱 TELEGRAM DATA</div>
-                    initData: ${tg?.initData ? tg.initData.substring(0, 100) + '...' : 'пусто'}<br>
-                    initDataUnsafe: ${JSON.stringify(tg?.initDataUnsafe || {}, null, 2)}
-                </div>
-
-                ${diagnostics.errors.length > 0 ? `
-                <div class="debug-section">
-                    <div class="debug-title debug-error">⚠️ ОШИБКИ</div>
-                    ${diagnostics.errors.map(e => `<div class="debug-error">${e}</div>`).join('')}
-                </div>
-                ` : ''}
-
-                <div class="debug-section">
-                    <div class="debug-title">💡 РЕКОМЕНДАЦИИ</div>
-                    ${!diagnostics.sdkLoaded ? '<div class="debug-error">• Telegram SDK не загружен - обновите Telegram</div>' : ''}
-                    ${!diagnostics.initDataAvailable ? '<div class="debug-error">• InitData недоступен - переоткройте Mini App</div>' : ''}
-                    ${!currentUserId ? '<div class="debug-error">• User ID не найден - попробуйте /start в боте</div>' : ''}
-                    ${diagnostics.sdkLoaded && diagnostics.initDataAvailable && currentUserId ? '<div class="debug-success">✓ Всё работает корректно!</div>' : ''}
-                </div>
-            `;
-        }
-        
-        // ========== СТАТИСТИКА ЗАГРУЗКИ ==========
-        
         const loadStats = {
             totalImages: 0,
             loadedImages: 0,
             failedImages: 0,
             retriedImages: 0,
+            proxyAttempts: 0,
             startTime: Date.now()
         };
 
@@ -757,67 +637,206 @@
             }, duration);
         }
 
-        function checkConnection() {
-            return new Promise((resolve) => {
-                const img = new Image();
-                const timeout = setTimeout(() => resolve(false), 5000);
-                
-                img.onload = () => {
-                    clearTimeout(timeout);
-                    resolve(true);
-                };
-                
-                img.onerror = () => {
-                    clearTimeout(timeout);
-                    resolve(false);
-                };
-                
-                img.src = 'https://telegram.org/img/t_logo.png?' + Date.now();
-            });
+        function toggleDebug() {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.classList.toggle('show');
+            if (debugInfo.classList.contains('show')) {
+                updateDebugDisplay();
+            }
         }
 
-        // ========== ЗАГРУЗКА С RETRY ==========
+        function collectDiagnostics() {
+            try {
+                diagnostics.sdkLoaded = !!window.Telegram?.WebApp;
+                diagnostics.telegramVersion = tg?.version || 'unknown';
+                diagnostics.platform = tg?.platform || navigator.platform;
+                diagnostics.initDataAvailable = !!(tg?.initData || tg?.initDataUnsafe);
+                diagnostics.proxyUsed = currentProxyIndex > 0 ? CORS_PROXIES[currentProxyIndex] : 'none';
+                
+                diagnostics.userIdMethods = [];
+                
+                if (tg?.initDataUnsafe?.user?.id) {
+                    diagnostics.userIdMethods.push('✓ initDataUnsafe.user.id');
+                } else {
+                    diagnostics.userIdMethods.push('✗ initDataUnsafe.user.id');
+                }
+
+                const urlUserId = new URLSearchParams(window.location.search).get('user_id');
+                if (urlUserId) {
+                    diagnostics.userIdMethods.push('✓ URL parameter');
+                } else {
+                    diagnostics.userIdMethods.push('✗ URL parameter');
+                }
+
+                if (tg?.initData) {
+                    diagnostics.userIdMethods.push('✓ initData available');
+                } else {
+                    diagnostics.userIdMethods.push('✗ initData not available');
+                }
+
+                const savedUserId = localStorage.getItem('telegram_user_id');
+                if (savedUserId) {
+                    diagnostics.userIdMethods.push('✓ localStorage');
+                } else {
+                    diagnostics.userIdMethods.push('✗ localStorage');
+                }
+
+            } catch (e) {
+                diagnostics.errors.push('Ошибка диагностики: ' + e.message);
+            }
+        }
+
+        function updateDebugDisplay() {
+            collectDiagnostics();
+            
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <div class="debug-section">
+                    <div class="debug-title">🔧 TELEGRAM WEB APP</div>
+                    SDK: <span class="${diagnostics.sdkLoaded ? 'debug-success' : 'debug-error'}">${diagnostics.sdkLoaded ? 'ДА' : 'НЕТ'}</span><br>
+                    Версия: ${diagnostics.telegramVersion}<br>
+                    Платформа: ${diagnostics.platform}<br>
+                    InitData: <span class="${diagnostics.initDataAvailable ? 'debug-success' : 'debug-error'}">${diagnostics.initDataAvailable ? 'ДА' : 'НЕТ'}</span>
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">👤 USER ID</div>
+                    ${diagnostics.userIdMethods.map(m => {
+                        const isSuccess = m.startsWith('✓');
+                        return `<div class="${isSuccess ? 'debug-success' : 'debug-error'}">${m}</div>`;
+                    }).join('')}<br>
+                    <b>Результат:</b> <span class="${currentUserId ? 'debug-success' : 'debug-error'}">${currentUserId || 'НЕ НАЙДЕН'}</span><br>
+                    Источник: ${userIdSource}
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">🖼️ ЗАГРУЗКА ИЗОБРАЖЕНИЙ</div>
+                    Всего: ${loadStats.totalImages}<br>
+                    <span class="debug-success">✓ Загружено: ${loadStats.loadedImages}</span><br>
+                    <span class="debug-error">✗ Ошибок: ${loadStats.failedImages}</span><br>
+                    🔄 Retry: ${loadStats.retriedImages}<br>
+                    🌐 Через прокси: ${loadStats.proxyAttempts}<br>
+                    Кэш: ${imageCache.size}<br>
+                    Время: ${((Date.now() - loadStats.startTime) / 1000).toFixed(1)}s
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">🔌 CORS & ПРОКСИ</div>
+                    Текущий прокси: <span class="${currentProxyIndex > 0 ? 'debug-error' : 'debug-success'}">${diagnostics.proxyUsed}</span><br>
+                    CORS блокировка: <span class="${loadStats.failedImages > 2 ? 'debug-error' : 'debug-success'}">${loadStats.failedImages > 2 ? 'ВЕРОЯТНО' : 'НЕТ'}</span><br>
+                    Доступные прокси: ${CORS_PROXIES.length}
+                </div>
+
+                <div class="debug-section">
+                    <div class="debug-title">🌐 СЕТЬ</div>
+                    Online: ${navigator.onLine ? '✓' : '✗'}<br>
+                    UA: ${navigator.userAgent.substring(0, 60)}...
+                </div>
+
+                ${loadStats.failedImages > 0 ? `
+                <div class="debug-section">
+                    <div class="debug-title debug-error">⚠️ ПРОБЛЕМА ОБНАРУЖЕНА</div>
+                    <div class="debug-error">
+                        Изображения не грузятся!<br><br>
+                        <b>Возможные причины:</b><br>
+                        1. CDN заблокирован оператором РФ<br>
+                        2. CORS политика хостинга<br>
+                        3. Файрвол блокирует запросы<br><br>
+                        <b>Решение:</b><br>
+                        • Используйте VPN<br>
+                        • Попросите админа разместить файлы на другом хостинге<br>
+                        • Нажмите "Повторить" на карточках
+                    </div>
+                </div>
+                ` : ''}
+
+                ${diagnostics.errors.length > 0 ? `
+                <div class="debug-section">
+                    <div class="debug-title debug-error">❌ ОШИБКИ</div>
+                    ${diagnostics.errors.map(e => `<div class="debug-error">${e}</div>`).join('')}
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        // ========== УМНАЯ ЗАГРУЗКА С ПРОКСИ ==========
         
         const imageCache = new Map();
-        const MAX_RETRIES = 3;
-        const RETRY_DELAYS = [1000, 2000, 4000];
+        const MAX_RETRIES = 4; // Увеличили для прокси
+        const RETRY_DELAYS = [500, 1000, 2000, 3000];
 
-        function loadImageWithRetry(img, attempt = 0) {
-            const src = img.dataset.src;
-            if (!src) return;
+        function getProxiedUrl(originalUrl, proxyIndex = 0) {
+            if (proxyIndex >= CORS_PROXIES.length) {
+                return originalUrl; // Вернули к оригиналу
+            }
+            
+            const proxy = CORS_PROXIES[proxyIndex];
+            if (!proxy) return originalUrl;
+            
+            return proxy + encodeURIComponent(originalUrl);
+        }
+
+        function loadImageWithRetry(img, attempt = 0, proxyIndex = 0) {
+            const originalSrc = img.dataset.src;
+            if (!originalSrc) return;
 
             const container = img.closest('.image-container');
-            const loadingIndicator = container.querySelector('.loading-indicator');
+            const loadingIndicator = container?.querySelector('.loading-indicator');
             const retryInfo = loadingIndicator?.querySelector('.retry-info');
 
-            if (imageCache.has(src)) {
-                img.src = src;
+            // Проверяем кэш
+            if (imageCache.has(originalSrc)) {
+                img.src = originalSrc;
                 img.classList.add('loaded');
                 loadStats.loadedImages++;
                 return;
             }
 
-            if (retryInfo && attempt > 0) {
-                retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}`;
+            // Обновляем статус
+            if (retryInfo) {
+                if (proxyIndex > 0) {
+                    retryInfo.textContent = `Прокси ${proxyIndex}/${CORS_PROXIES.length - 1}...`;
+                    loadStats.proxyAttempts++;
+                } else {
+                    retryInfo.textContent = `Попытка ${attempt + 1}/${MAX_RETRIES}`;
+                }
             }
 
+            const srcToLoad = getProxiedUrl(originalSrc, proxyIndex);
             const tempImg = new Image();
+            
+            // Увеличили таймаут для прокси
+            const timeout = proxyIndex > 0 ? 20000 : 10000;
             const loadTimeout = setTimeout(() => {
                 tempImg.src = '';
                 handleLoadError();
-            }, 15000);
+            }, timeout);
+
+            // Для прокси серверов иногда нужны дополнительные заголовки
+            if (proxyIndex > 0) {
+                tempImg.crossOrigin = 'anonymous';
+            }
 
             tempImg.onload = () => {
                 clearTimeout(loadTimeout);
-                img.src = src;
+                
+                // Успех! Сохраняем в кэш
+                img.src = tempImg.src;
                 img.classList.add('loaded');
-                imageCache.set(src, true);
+                imageCache.set(originalSrc, tempImg.src);
                 
                 if (loadingIndicator) {
                     setTimeout(() => loadingIndicator.remove(), 400);
                 }
 
                 loadStats.loadedImages++;
+                
+                // Обновляем текущий рабочий прокси
+                if (proxyIndex > 0 && currentProxyIndex === 0) {
+                    currentProxyIndex = proxyIndex;
+                    console.log(`✓ Прокси ${proxyIndex} работает, переключаемся`);
+                    showConnectionStatus(`✓ Загрузка через прокси ${proxyIndex}`, 2000);
+                }
 
                 if (loadStats.loadedImages === 1) {
                     showConnectionStatus('✓ Загрузка работает', 1500);
@@ -828,25 +847,36 @@
 
             function handleLoadError() {
                 clearTimeout(loadTimeout);
+                console.warn(`✗ Ошибка загрузки: ${srcToLoad.substring(0, 100)}`);
                 
-                if (attempt < MAX_RETRIES) {
+                // Сначала пробуем следующий прокси
+                if (proxyIndex < CORS_PROXIES.length - 1) {
                     loadStats.retriedImages++;
-                    
-                    const delay = RETRY_DELAYS[attempt] || 4000;
                     setTimeout(() => {
-                        loadImageWithRetry(img, attempt + 1);
+                        loadImageWithRetry(img, attempt, proxyIndex + 1);
+                    }, 500);
+                }
+                // Потом делаем retry с текущим прокси
+                else if (attempt < MAX_RETRIES) {
+                    loadStats.retriedImages++;
+                    const delay = RETRY_DELAYS[attempt] || 3000;
+                    setTimeout(() => {
+                        loadImageWithRetry(img, attempt + 1, currentProxyIndex);
                     }, delay);
-                } else {
+                } 
+                // Все попытки исчерпаны
+                else {
                     loadStats.failedImages++;
-                    showErrorPlaceholder(container, src);
+                    showErrorPlaceholder(container, originalSrc);
                     
-                    if (loadStats.failedImages >= 3) {
-                        showConnectionStatus('⚠️ Проблемы с загрузкой', 3000);
+                    if (loadStats.failedImages === 3) {
+                        diagnostics.corsBlocked = true;
+                        showConnectionStatus('⚠️ CORS блокировка обнаружена', 4000);
                     }
                 }
             }
 
-            tempImg.src = src;
+            tempImg.src = srcToLoad;
         }
 
         function showErrorPlaceholder(container, src) {
@@ -859,7 +889,7 @@
                 <svg viewBox="0 0 24 24">
                     <path d="M21.9,21.9l-8.49-8.49l0,0L3.59,3.59l0,0L2.1,2.1L0.69,3.51L3,5.83V19c0,1.1,0.9,2,2,2h13.17l2.31,2.31L21.9,21.9z M5,18 l3.5-4.5l2.5,3.01L12.17,15l3,3H5z M21,18.17L5.83,3H19c1.1,0,2,0.9,2,2V18.17z"/>
                 </svg>
-                <div class="error-text">Не удалось загрузить</div>
+                <div class="error-text">CDN заблокирован<br>Нажмите 🔧 для решения</div>
                 <button class="retry-btn" onclick="retryImage('${src}', this)">Повторить</button>
             `;
             container.appendChild(errorDiv);
@@ -874,20 +904,22 @@
             loadingIndicator.className = 'loading-indicator';
             loadingIndicator.innerHTML = `
                 <div class="loading-spinner"></div>
-                <div class="retry-info">Загрузка...</div>
+                <div class="retry-info">Пробуем прокси...</div>
             `;
             container.appendChild(loadingIndicator);
 
             const img = container.querySelector('.style-image');
             img.dataset.src = src;
-            loadImageWithRetry(img, 0);
+            
+            // При ручном retry сразу пробуем прокси
+            loadImageWithRetry(img, 0, currentProxyIndex > 0 ? currentProxyIndex : 1);
         };
 
         const imageObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    loadImageWithRetry(img);
+                    loadImageWithRetry(img, 0, currentProxyIndex);
                     imageObserver.unobserve(img);
                 }
             });
@@ -895,48 +927,39 @@
             rootMargin: '100px'
         });
 
-        function preloadPriorityImages(count = 3) {
+        function preloadPriorityImages(count = 2) {
             const images = document.querySelectorAll('.style-image[data-src]');
             Array.from(images).slice(0, count).forEach(img => {
-                loadImageWithRetry(img);
+                loadImageWithRetry(img, 0, currentProxyIndex);
                 imageObserver.unobserve(img);
             });
         }
         
-        // ========== УНИВЕРСАЛЬНОЕ ПОЛУЧЕНИЕ USER ID ==========
+        // ========== USER ID ==========
         
         let userIdSource = 'unknown';
         
         function getUserId() {
             let userId = null;
             
-            // СПОСОБ 1: URL параметр
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlUserId = urlParams.get('user_id');
                 if (urlUserId) {
                     userId = urlUserId;
                     userIdSource = 'URL parameter';
-                    console.log('✓ User ID из URL:', userId);
                 }
-            } catch (e) {
-                console.error('✗ Ошибка чтения URL:', e);
-            }
+            } catch (e) {}
             
-            // СПОСОБ 2: initDataUnsafe (основной для новых версий)
             if (!userId) {
                 try {
                     if (tg?.initDataUnsafe?.user?.id) {
                         userId = tg.initDataUnsafe.user.id;
                         userIdSource = 'initDataUnsafe.user.id';
-                        console.log('✓ User ID из initDataUnsafe:', userId);
                     }
-                } catch (e) {
-                    console.error('✗ Ошибка чтения initDataUnsafe:', e);
-                }
+                } catch (e) {}
             }
             
-            // СПОСОБ 3: Парсинг initData (для старых версий)
             if (!userId) {
                 try {
                     if (tg?.initData) {
@@ -947,54 +970,32 @@
                             if (user?.id) {
                                 userId = user.id;
                                 userIdSource = 'initData parsed';
-                                console.log('✓ User ID из initData (parsed):', userId);
                             }
                         }
                     }
-                } catch (e) {
-                    console.error('✗ Ошибка парсинга initData:', e);
-                }
+                } catch (e) {}
             }
             
-            // СПОСОБ 4: localStorage (фолбек)
             if (!userId) {
                 try {
                     const savedUserId = localStorage.getItem('telegram_user_id');
                     if (savedUserId) {
                         userId = savedUserId;
-                        userIdSource = 'localStorage (cached)';
-                        console.log('✓ User ID из localStorage:', userId);
+                        userIdSource = 'localStorage';
                     }
-                } catch (e) {
-                    console.error('✗ Ошибка чтения localStorage:', e);
-                }
+                } catch (e) {}
             }
             
-            // СПОСОБ 5: Запрос у пользователя (крайний случай)
-            if (!userId) {
-                console.warn('⚠️ User ID не найден автоматически');
-                userIdSource = 'not found';
-                // Можно добавить ручной ввод, но это не рекомендуется
-            }
-            
-            // Сохраняем в localStorage для следующего раза
             if (userId) {
                 try {
                     localStorage.setItem('telegram_user_id', userId);
-                    localStorage.setItem('telegram_user_id_source', userIdSource);
-                    localStorage.setItem('telegram_user_id_timestamp', Date.now().toString());
-                } catch (e) {
-                    console.error('✗ Ошибка сохранения в localStorage:', e);
-                }
+                } catch (e) {}
             }
             
             return userId;
         }
         
         const currentUserId = getUserId();
-        console.log('=== USER ID RESULT ===');
-        console.log('ID:', currentUserId);
-        console.log('Source:', userIdSource);
         
         // ========== ОСНОВНОЙ КОД ==========
         
@@ -1020,13 +1021,14 @@
             loadStats.loadedImages = 0;
             loadStats.failedImages = 0;
             loadStats.retriedImages = 0;
+            loadStats.proxyAttempts = 0;
             loadStats.startTime = Date.now();
 
             if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
                 grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
                 setTimeout(() => {
                     if (typeof GALLERY_STYLES === 'undefined' || GALLERY_STYLES.length === 0) {
-                        grid.innerHTML = '<div class="empty-message">Галерея временно недоступна<br>Попробуйте позже<br><br><small>Нажмите 🔧 для диагностики</small></div>';
+                        grid.innerHTML = '<div class="empty-message">Галерея недоступна<br>Нажмите 🔧 для диагностики</div>';
                     }
                 }, 3000);
                 return;
@@ -1037,19 +1039,15 @@
             if (currentTab === 'admin') {
                 displayStyles = displayStyles.filter(s => s.is_admin === true);
                 if (displayStyles.length === 0) {
-                    grid.innerHTML = '<div class="empty-message">Коллекция редакции пока пуста<br><small>Скоро здесь появятся лучшие стили!</small></div>';
+                    grid.innerHTML = '<div class="empty-message">Коллекция редакции пока пуста</div>';
                     return;
                 }
             } else if (currentTab === 'mine') {
                 if (!currentUserId) {
                     grid.innerHTML = `
                         <div class="empty-message">
-                            ⚠️ Не удалось определить ваш ID<br><br>
-                            <b>Попробуйте:</b><br>
-                            1. Обновите Telegram до последней версии<br>
-                            2. Закройте и откройте Mini App<br>
-                            3. Напишите боту /start<br><br>
-                            <small>Нажмите 🔧 для подробной диагностики</small>
+                            ⚠️ User ID не найден<br><br>
+                            Нажмите 🔧 для диагностики
                         </div>`;
                     return;
                 }
@@ -1059,7 +1057,7 @@
                 });
                 
                 if (displayStyles.length === 0) {
-                    grid.innerHTML = '<div class="empty-message">У вас пока нет своих стилей<br><small>Создайте их в боте командой /create!</small></div>';
+                    grid.innerHTML = '<div class="empty-message">У вас пока нет стилей<br><small>Создайте их в боте!</small></div>';
                     return;
                 }
             }
@@ -1130,7 +1128,7 @@
             const images = grid.querySelectorAll('.style-image[data-src]');
             images.forEach(img => imageObserver.observe(img));
 
-            setTimeout(() => preloadPriorityImages(3), 100);
+            setTimeout(() => preloadPriorityImages(2), 100);
         }
 
         function switchTab(tabName) {
@@ -1174,11 +1172,6 @@
                         if (tg?.sendData) {
                             tg.sendData(JSON.stringify(data));
                         }
-                        if (tg?.HapticFeedback) {
-                            try {
-                                tg.HapticFeedback.notificationOccurred('success');
-                            } catch (e) {}
-                        }
                     }
                 });
             }
@@ -1190,39 +1183,19 @@
                 if (tg?.sendData) {
                     tg.sendData(JSON.stringify(data));
                 }
-                if (tg?.HapticFeedback) {
-                    try {
-                        tg.HapticFeedback.notificationOccurred('success');
-                    } catch (e) {}
-                }
             });
         }
 
         // Инициализация
-        checkConnection().then(isOnline => {
-            if (isOnline) {
-                showConnectionStatus('🌐 Соединение установлено', 2000);
-            } else {
-                showConnectionStatus('⚠️ Проблемы с интернетом', 3000);
-            }
-            renderGrid();
-        });
+        renderGrid();
 
-        window.addEventListener('online', () => {
-            showConnectionStatus('✓ Интернет восстановлен', 2000);
-        });
-
-        window.addEventListener('offline', () => {
-            showConnectionStatus('⚠️ Нет интернета', 3000);
-        });
-
-        // Автоматическая диагностика при проблемах
+        // Автодиагностика через 3 секунды
         setTimeout(() => {
-            if (!currentUserId || loadStats.failedImages > 3) {
-                console.warn('⚠️ Обнаружены проблемы, включаем диагностику');
-                collectDiagnostics();
+            if (loadStats.failedImages > 2) {
+                console.warn('⚠️ Обнаружены проблемы с загрузкой');
+                showConnectionStatus('⚠️ Проблемы с CDN - нажмите 🔧', 5000);
             }
-        }, 5000);
+        }, 3000);
     </script>
 </body>
 </html>
